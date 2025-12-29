@@ -1,0 +1,14 @@
+﻿Ref
+https://github.com/Cabbagito/Junimo-Kart-AI
+https://github.com/mehmtsari/stardew_valley_fish_ai
+https://github.com/keethesh/StardewValleyFishingAI
+https://github.com/phin01/AutoPlaySV
+https://github.com/EliotMorvan/Stardew-Valley-AI
+https://github.com/SolvingGames/Stardew_Valley_Fishing
+
+
+tools
+https://github.com/TheRealWiseWolfHolo/StardewAI
+https://github.com/ejresearch/StardewValley
+
+

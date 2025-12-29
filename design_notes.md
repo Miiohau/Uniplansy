@@ -1,0 +1,2 @@
+Idea: external planners are implemented as async decomposers.  Async decomposers have a list of subtasks they can emit.
+Note: surface advantages and disadvantages of async decomposers to the user (likely in the documentation for async decomposers, or it owns document explaining various multi-planner structures and the advantages and disadvantages of each).
