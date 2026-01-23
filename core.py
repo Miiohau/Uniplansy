@@ -1,8 +1,9 @@
 from __future__ import annotations
 import copy
 from abc import abstractmethod, ABCMeta
+from builtins import ExceptionGroup
 from enum import auto, Enum
-from typing import List, Any, Tuple
+from typing import List, Any, Tuple, TypeVar, Optional, Generic
 from collections.abc import Iterable, Generator
 from dataclasses import dataclass, field
 from immutabledict import immutabledict
@@ -22,9 +23,9 @@ class TaskDescription:
 
     def __eq__(self, other):
         if isinstance(other, TaskDescription):
-            if self.guid == other.guid:
-                assert self.human_understandable_string == other.human_understandable_string, f"by guid \"{self.human_understandable_string}\" should equal \"{other.human_understandable_string}\" but they have different human understandable strings"
-                assert self.context == other.context, f"by guid {self.human_understandable_string} should equal {other.human_understandable_string} but \"{self.human_understandable_string}\" has context {self.context} and \"{other.human_understandable_string}\" has context {other.context}"
+            if __debug__ and (self.guid == other.guid):
+                assert self.human_understandable_string == other.human_understandable_string, f"by guid \"{self.human_understandable_string}\" {self.guid} should equal \"{other.human_understandable_string}\" {self.guid} but they have different human understandable strings"
+                assert self.context == other.context, f"by guid \"{self.human_understandable_string}\" \"{self.guid}\" should equal \"{other.human_understandable_string}\" \"{other.guid}\" but \"{self.human_understandable_string}\" has context {self.context} and \"{other.human_understandable_string}\" has context {other.context}"
             return self.guid == other.guid
         return NotImplemented
     
@@ -57,7 +58,7 @@ class TaskFilter(metaclass=ABCMeta):
     def accept_any_task(self, tasks : Iterable[Task]) -> bool:
         """returns true if any of the tasks in tasks are accepted by this filter"""
         task_filter = self.filter_tasks_generator(tasks)
-        first = next(task_filter)
+        first = next(task_filter,None)
         task_filter.close()
         return first is not None
 
@@ -113,8 +114,6 @@ class Plan:
         """filter tasks based on a TaskFilter"""
         pass
 
-
-
 class Decomposer(metaclass=ABCMeta):
 
     @abstractmethod
@@ -122,10 +121,8 @@ class Decomposer(metaclass=ABCMeta):
         """return the Decomposer's task filter"""
         pass
 
-    @abstractmethod
-    def filter_tasks_planed_for(self, task_list : List[Task]) -> List[Task]:
-        """filter task_list based on the tasks that can be planned for by this Decomposer"""
-        pass
+    def filter_tasks_planed_for(self, task_list : List[Task]) -> Iterable[Task]:
+        return self.task_filter().filter_tasks_list(task_list)
 
     @abstractmethod
     def decompose_tasks(self, plan:Plan) -> List[Plan]:
@@ -138,73 +135,155 @@ class ReasonerConsideration(metaclass=ABCMeta):
     def is_valid_state(self, world) -> bool:
         pass
 
+class ReasonerException(Exception):
+    pass
+
+class ChildFailureException(ReasonerException):
+    pass
+
+class ReasonerEnterException(ReasonerException):
+    pass
+
+class TryingToEnterAFailedReasonerException(ReasonerEnterException):
+    pass
+
+class TryingToEnterARunningReasonerException(ReasonerEnterException):
+    pass
+
 class ReasonerState(Enum):
+    Not_Started = auto()
     Running = auto()
     Done = auto()
     Failed = auto()
 
-class Reasoner(metaclass=ABCMeta):
+Reasoner_Update_Context_Type = TypeVar('Reasoner_Update_Context_Type')
+World_Type = TypeVar('World_Type')
 
-    def __init__(self):
+class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCMeta):
+    sub_reasoner:Optional[Reasoner]
+    active_reasoner_considerations:List[ReasonerConsideration]
+    state:ReasonerState
+    should_null_sub_reasoner:bool
+    failure_context:Optional[Exception]
+    entered_sub_reasoner:bool
+    # TODO: rewrite using exceptions and try catch finally blocks
+    def __init__(self, guid:str):
+        self.guid = guid
         self.active_reasoner_considerations = []
         self.sub_reasoner = None
-        self.state = ReasonerState.Running
+        self.state = ReasonerState.Not_Started
+        self.should_null_sub_reasoner = False
+        self.entered_sub_reasoner = False
+        self.failure_context = None
 
-    @abstractmethod
-    def think(self, update_context):
-        pass
+    # noinspection PyMethodMayBeStatic,PyUnusedLocal
+    def think(self, update_context:Reasoner_Update_Context_Type) -> Optional[Tuple[Reasoner, Optional[List[ReasonerConsideration]]]]:
+        return None
 
-    @abstractmethod
-    def sense(self, world, update_context):
+    # noinspection PyMethodMayBeStatic,PyUnusedLocal
+    def sense(self, world:World_Type, update_context:Reasoner_Update_Context_Type) -> Reasoner_Update_Context_Type:
         """updates the internal state of the Reasoner and adds notes to update_context"""
         return update_context
 
-    @abstractmethod
-    def act(self, world, update_context):
-        pass
+    # noinspection PyUnusedLocal
+    def act(self, world:World_Type, update_context:Reasoner_Update_Context_Type):
+        self.state = ReasonerState.Done
 
-    @abstractmethod
-    def exit(self, update_context):
+    # noinspection PyUnusedLocal
+    def enter(self, update_context:Reasoner_Update_Context_Type) -> ReasonerState:
+        """enters the Reasoner. by default, it is a fail state to renter a running Reasoner or failed Reasoner but a finished(done) Reasoner will immediately return Done"""
+        if self.state == ReasonerState.Running:
+            raise TryingToEnterARunningReasonerException()
+        if self.state == ReasonerState.Failed:
+            raise TryingToEnterAFailedReasonerException() from self.failure_context
+        if self.state == ReasonerState.Not_Started:
+            self.state = ReasonerState.Running
+        return self.state
+
+    def exit(self, update_context:Reasoner_Update_Context_Type):
         """tells the Reasoner to clean up and exit"""
         if self.sub_reasoner is not None:
             self.sub_reasoner.exit(update_context)
             self.active_reasoner_considerations = []
             self.sub_reasoner = None
-        if self.state == ReasonerState.Running:
+        if self.state != ReasonerState.Failed:
             self.state = ReasonerState.Done
 
-    @abstractmethod
-    def handle_active_reasoner_consideration_failure(self, update_context):
-        pass
+    # noinspection PyUnusedLocal
+    def handle_active_reasoner_consideration_failure(self, update_context:Reasoner_Update_Context_Type, failure_context:Optional[Exception]):
+        self.state = ReasonerState.Failed
+        self.failure_context = failure_context
 
-    @abstractmethod
-    def handle_child_failure(self, update_context):
-        pass
+    # noinspection PyUnusedLocal
+    def handle_child_failure(self, update_context:Reasoner_Update_Context_Type, failure_context:Optional[Exception]):
+        self.state = ReasonerState.Failed
+        new_failure_context:ChildFailureException = ChildFailureException()
+        new_failure_context.__cause__ = failure_context
+        self.failure_context = new_failure_context
 
-    def update(self, world, parent_update_context) -> ReasonerState:
+    def handle_child_enter_failure(self, update_context:Reasoner_Update_Context_Type,failure_context:Optional[Exception]):
+        self.handle_child_failure(update_context,failure_context)
+
+    def null_sub_reasoner(self, update_context:Reasoner_Update_Context_Type):
+        self.active_reasoner_considerations = []
+        self.sub_reasoner = None
+        self.entered_sub_reasoner = False
+
+    def update(self, world:World_Type, parent_update_context:Reasoner_Update_Context_Type) -> ReasonerState:
         update_context = copy.deepcopy(parent_update_context)
         update_context = self.sense(world, update_context)
         should_continue = True
+        active_reasoner_consideration_failure_context :Optional[Exception] = None
         for current_reasoner_consideration in self.active_reasoner_considerations:
-            should_continue = should_continue and current_reasoner_consideration.is_valid_state(world)
+            try:
+                should_continue = should_continue and current_reasoner_consideration.is_valid_state(world)
+            except ReasonerException as e:
+                if active_reasoner_consideration_failure_context is None:
+                    active_reasoner_consideration_failure_context = e
+                elif active_reasoner_consideration_failure_context is ExceptionGroup:
+                    # noinspection PyTypeChecker
+                    active_reasoner_consideration_failure_context_exception_group:ExceptionGroup = active_reasoner_consideration_failure_context
+                    inner_exceptions:list[Exception | ExceptionGroup[Exception | Any] | Any] = list(active_reasoner_consideration_failure_context_exception_group.exceptions)
+                    inner_exceptions.append(e)
+                    active_reasoner_consideration_failure_context = ExceptionGroup("active reasoner considerations ExceptionGroup for Reasoner " + self.guid,inner_exceptions)
+                else:
+                    inner_exceptions: list[Exception | ExceptionGroup[Exception | Any] | Any] = list()
+                    inner_exceptions.append(active_reasoner_consideration_failure_context)
+                    inner_exceptions.append(e)
+                    active_reasoner_consideration_failure_context = ExceptionGroup("active reasoner considerations ExceptionGroup for Reasoner " + self.guid, inner_exceptions)
         if not should_continue:
-            self.handle_active_reasoner_consideration_failure(update_context)
-            self.sub_reasoner.exit(update_context)
-            self.active_reasoner_considerations = []
-            self.sub_reasoner = None
+            self.should_null_sub_reasoner = True
+            self.handle_active_reasoner_consideration_failure(update_context,active_reasoner_consideration_failure_context)
+            if self.should_null_sub_reasoner:
+                self.sub_reasoner.exit(update_context)
+                self.null_sub_reasoner(update_context)
+
         if self.sub_reasoner is not None:
             sub_reasoner_state = self.sub_reasoner.update(world, update_context)
             if sub_reasoner_state is ReasonerState.Failed:
-                self.handle_child_failure(update_context)
-            if sub_reasoner_state is not ReasonerState.Running:
-                self.active_reasoner_considerations=[]
-                self.sub_reasoner = None
+                self.should_null_sub_reasoner = True
+                self.handle_child_failure(update_context,self.sub_reasoner.failure_context)
+            elif sub_reasoner_state is ReasonerState.Done:
+                self.should_null_sub_reasoner = True
+            if (sub_reasoner_state is not ReasonerState.Running) and self.should_null_sub_reasoner:
+                self.null_sub_reasoner(update_context)
         elif self.state == ReasonerState.Running:
             self.sub_reasoner, self.active_reasoner_considerations = self.think(update_context)
         if self.state != ReasonerState.Running:
             self.exit(update_context)
             return self.state
-        if self.sub_reasoner is None:
+        if self.sub_reasoner is not None:
+            if not self.entered_sub_reasoner:
+                self.entered_sub_reasoner = True
+                try:
+                    sub_reasoner_enter_state = self.sub_reasoner.enter(update_context)
+                except ReasonerException as e:
+                    self.should_null_sub_reasoner = True
+                    self.handle_child_enter_failure(update_context,e)
+                else:
+                    if (sub_reasoner_enter_state is not ReasonerState.Running) and self.should_null_sub_reasoner:
+                        self.null_sub_reasoner(update_context)
+        else:
             self.act(world,update_context)
         if (self.state == ReasonerState.Failed) or (self.state == ReasonerState.Done):
             self.exit(update_context)
@@ -226,7 +305,7 @@ class PlanComparisonStrategyToken(Enum):
     satisfied_percentage_median_asc = auto()
     satisfied_percentage_median_des = auto()
 
-# cost asesening motivation desending
+# cost ascending motivation descending
 class PlanComparisonStrategy(metaclass=ABCMeta):
 
     def __init__(self, order: List[PlanComparisonStrategyToken]):
