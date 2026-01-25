@@ -1,16 +1,49 @@
 from __future__ import annotations
 import copy
+import statistics
 from abc import abstractmethod, ABCMeta
 from builtins import ExceptionGroup
+from copy import deepcopy
 from enum import auto, Enum
 from typing import List, Any, Tuple, TypeVar, Optional, Generic
 from collections.abc import Iterable, Generator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, FrozenInstanceError, field
 from immutabledict import immutabledict
 
 
 core_debugging_flag = True
 
+class FreezableObject:
+    """an object that can be frozen and unfrozen. The """
+    frozen: bool = False
+
+    def freeze(self):
+        """freeze the object. Meaning it is protected from modification"""
+        self.frozen = True
+
+    def unfreeze(self):
+        """unfreeze the object. Meaning it is no longer protected from modification"""
+        self.frozen = False
+
+    def thaw(self):
+        """alias for unfreeze. Subclasses should override that method, if they need to change the unfreeze behavior."""
+        self.unfreeze()
+
+    def deep_copy_and_unfreeze(self):
+        """deep copy and unfreezes the copy of the FreezableObject. Always safe because a deep copy should be completely independent of the original object"""
+        new_copy = deepcopy(self)
+        new_copy.unfreeze()
+        return new_copy
+
+    def __setattr__(self, name, value):
+        if self.frozen:
+            raise FrozenInstanceError()
+        super().__setattr__(name, value)
+
+    def __delattr__(self, name):
+        if self.frozen:
+            raise FrozenInstanceError()
+        super().__delattr__(name)
 
 @dataclass(frozen=True, repr=True)
 class TaskDescription:
@@ -39,14 +72,49 @@ class TaskDescription:
         return self
 
 @dataclass
-class Task:
-    description:TaskDescription
-    motivation:float = field(default=0.0)
-    estimated_cost: float = field(default=0.0)
-    min_cost:float = field(default=0.0)
-    max_cost:float = field(default=float("inf"))
-    satisfied_percentage:float = field(default=0.0)
+class PlanGraphNode(FreezableObject):
+    children:set[PlanGraphNode] = field(default_factory=set, kw_only=True)
+    parents: set[PlanGraphNode] = field(default_factory=set, kw_only=True)
+    frozen_children:Optional[frozenset[PlanGraphNode]] = field(default=None, init=False)
+    frozen_parents:Optional[frozenset[PlanGraphNode]] = field(default=None, init=False)
 
+    def __getattribute__(self, name):
+        if not self.frozen:
+            return super().__getattribute__(name)
+        elif name == "children":
+            if self.frozen_children is None:
+                self.frozen_children = frozenset(super().__getattribute__(name))
+            return self.frozen_children
+        elif name == "parents":
+            if self.frozen_parents is None:
+                self.frozen_parents = frozenset(super().__getattribute__(name))
+            return self.frozen_parents
+        else:
+            return super().__getattribute__(name)
+
+    def unfreeze(self):
+        super().unfreeze()
+        self.frozen_children = None
+        self.frozen_parents = None
+
+@dataclass
+class Task(PlanGraphNode):
+    description:TaskDescription
+    motivation:float = 0.0
+    estimated_cost: float = 0.0
+    min_cost:float = 0.0
+    max_cost:float = float("inf")
+    satisfied_percentage:float = 0.0
+
+    def get_clamped_satisfied_percentage(self,min_value:float,max_value:float):
+        return min(max(self.satisfied_percentage,min_value),max_value)
+
+@dataclass
+class DecomposerNode(PlanGraphNode):
+    node_decomposer:Decomposer
+
+    def __deepcopy__(self, memo):
+        return DecomposerNode(children=deepcopy(self.children,memo), parents=deepcopy(self.parents,memo),node_decomposer=self.node_decomposer)
 
 class TaskFilter(metaclass=ABCMeta):
 
@@ -62,59 +130,139 @@ class TaskFilter(metaclass=ABCMeta):
         task_filter.close()
         return first is not None
 
-    def filter_tasks_list(self, tasks : Iterable[Task]) -> Iterable[Task]:
-        """filter tasks based on a TaskFilter. Returns an Iterable of Tasks (usually a list)"""
+    def filter_tasks_list(self, tasks : Iterable[Task]) -> List[Task]:
+        """filter tasks based on a TaskFilter. Returns a List of Tasks"""
         return list(self.filter_tasks_generator(tasks))
 
-@dataclass
-class Plan:
-    guid: str
-
+@dataclass(init=True,repr=True,eq=True)
+class Plan(FreezableObject):
+    tasks_by_GUID:dict[str,Task]
+    decomposer_id_to_DecomposerNodes:dict[str,DecomposerNode]
+    node_dump:set[PlanGraphNode]
 
     def total_motivation(self) -> float:
         """return the total motivation of the plan"""
-        pass
+        total:float = 0
+        for cur_task in self.tasks_by_GUID.values():
+            total += (cur_task.motivation * (1-cur_task.get_clamped_satisfied_percentage(0,1)))
+        return total
 
     def min_cost(self)  -> float:
         """return the minimum cost of the plan"""
-        pass
+        total: float = 0
+        for cur_task in self.tasks_by_GUID.values():
+            total += (cur_task.min_cost * (1 - cur_task.get_clamped_satisfied_percentage(0, 1)))
+        return total
 
     def estimated_cost(self) -> float:
         """return the estimated cost of the plan"""
-        pass
+        total: float = 0
+        for cur_task in self.tasks_by_GUID.values():
+            total += (cur_task.estimated_cost * (1 - cur_task.get_clamped_satisfied_percentage(0, 1)))
+        return total
 
     def max_cost(self) -> float:
         """return the maximum cost of the plan"""
-        pass
+        total: float = 0
+        for cur_task in self.tasks_by_GUID.values():
+            total += (cur_task.estimated_cost * (1 - cur_task.get_clamped_satisfied_percentage(0, 1)))
+        return total
 
     def average_satisfied_percentage(self) -> float:
         """return the average satisfied percentage of the tasks in the plan"""
-        pass
+        total: float = 0
+        for cur_task in self.tasks_by_GUID.values():
+            total += cur_task.satisfied_percentage
+        return total / len(self.tasks_by_GUID)
 
     def median_satisfied_percentage(self) -> float:
         """return the median satisfied percentage of the plan"""
-        pass
+        satisfied_percentage_values: list[float] = []
+        for cur_task in self.tasks_by_GUID.values():
+            satisfied_percentage_values.append(cur_task.satisfied_percentage)
+        return statistics.median(satisfied_percentage_values)
 
     def unsatisfied_tasks(self) -> List[Task]:
         """return the unsatisfied tasks"""
-        pass
-
+        r_values: list[Task] = []
+        for cur_task in self.tasks_by_GUID.values():
+            if cur_task.satisfied_percentage <= 1:
+                r_values.append(cur_task)
+        return r_values
 
     def leaf_tasks(self) -> List[Task]:
         """return the leaf tasks"""
-        pass
+        r_values: list[Task] = []
+        for cur_task in self.tasks_by_GUID.values():
+            if len(cur_task.children) == 0:
+                r_values.append(cur_task)
+        return r_values
 
 
-    def convert_to_executor_graph(self):
-        """convert this plan to an executor graph"""
+    def convert_to_reasoner_graph(self):
+        """convert this plan to a reasoner graph"""
+        #TODO: Implement
         pass
 
 
     def filter_tasks(self, task_filter : TaskFilter) -> List[Task]:
         """filter tasks based on a TaskFilter"""
-        pass
+        return list(task_filter.filter_tasks_list(self.tasks_by_GUID.values()))
+
+    def add_node(self, new_node: PlanGraphNode) -> bool:
+        """add a task to this plan. Returns true if the node wasn't already in the plan"""
+        if self.frozen:
+            raise FrozenInstanceError()
+        if isinstance(new_node,Task):
+            if not new_node.description.guid in self.tasks_by_GUID:
+                self.tasks_by_GUID[new_node.description.guid] = new_node
+                self._add_node_recurse(new_node)
+                return True
+        elif isinstance(new_node,DecomposerNode):
+            if not new_node.node_decomposer.id in self.decomposer_id_to_DecomposerNodes:
+                self.decomposer_id_to_DecomposerNodes[new_node.node_decomposer.id] = new_node
+                self._add_node_recurse(new_node)
+                return True
+        else:
+            if not new_node in self.node_dump:
+                self.node_dump.add(new_node)
+                self._add_node_recurse(new_node)
+                return True
+        return False
+
+    def _add_node_recurse(self, new_node: PlanGraphNode):
+        """add a task to this plan"""
+        for cur_parent in new_node.parents:
+            if not new_node in cur_parent.children:
+                cur_parent.children.add(new_node)
+            self.add_node(cur_parent)
+        for cur_child in new_node.children:
+            if not new_node in cur_child.parents:
+                cur_child.parents.add(new_node)
+            self.add_node(cur_child)
+
+    def freeze(self):
+        """freeze the plan. Meaning it is protected from modification"""
+        for node in self.node_dump:
+            node.freeze()
+        for node in self.decomposer_id_to_DecomposerNodes.values():
+            node.freeze()
+        for node in self.tasks_by_GUID.values():
+            node.freeze()
+        super().freeze()
+
+    def unfreeze(self):
+        """unfreeze the plan. Meaning it is no longer protected from modification"""
+        super().unfreeze()
+        for node in self.node_dump:
+            node.unfreeze()
+        for node in self.decomposer_id_to_DecomposerNodes.values():
+            node.unfreeze()
+        for node in self.tasks_by_GUID.values():
+            node.unfreeze()
 
 class Decomposer(metaclass=ABCMeta):
+    id:str
 
     @abstractmethod
     def task_filter(self) -> TaskFilter:
@@ -129,10 +277,13 @@ class Decomposer(metaclass=ABCMeta):
         """decompose the tasks in plan"""
         pass
 
-class ReasonerConsideration(metaclass=ABCMeta):
+Reasoner_Update_Context_Type = TypeVar('Reasoner_Update_Context_Type')
+World_Type = TypeVar('World_Type')
+
+class ReasonerConsideration(Generic[World_Type],metaclass=ABCMeta):
 
     @abstractmethod
-    def is_valid_state(self, world) -> bool:
+    def is_valid_state(self, world:World_Type) -> bool:
         pass
 
 class ReasonerException(Exception):
@@ -156,9 +307,6 @@ class ReasonerState(Enum):
     Done = auto()
     Failed = auto()
 
-Reasoner_Update_Context_Type = TypeVar('Reasoner_Update_Context_Type')
-World_Type = TypeVar('World_Type')
-
 class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCMeta):
     sub_reasoner:Optional[Reasoner]
     active_reasoner_considerations:List[ReasonerConsideration]
@@ -166,7 +314,7 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
     should_null_sub_reasoner:bool
     failure_context:Optional[Exception]
     entered_sub_reasoner:bool
-    # TODO: rewrite using exceptions and try catch finally blocks
+
     def __init__(self, guid:str):
         self.guid = guid
         self.active_reasoner_considerations = []
@@ -224,6 +372,7 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
     def handle_child_enter_failure(self, update_context:Reasoner_Update_Context_Type,failure_context:Optional[Exception]):
         self.handle_child_failure(update_context,failure_context)
 
+    # noinspection PyUnusedLocal
     def null_sub_reasoner(self, update_context:Reasoner_Update_Context_Type):
         self.active_reasoner_considerations = []
         self.sub_reasoner = None
@@ -240,10 +389,8 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
             except ReasonerException as e:
                 if active_reasoner_consideration_failure_context is None:
                     active_reasoner_consideration_failure_context = e
-                elif active_reasoner_consideration_failure_context is ExceptionGroup:
-                    # noinspection PyTypeChecker
-                    active_reasoner_consideration_failure_context_exception_group:ExceptionGroup = active_reasoner_consideration_failure_context
-                    inner_exceptions:list[Exception | ExceptionGroup[Exception | Any] | Any] = list(active_reasoner_consideration_failure_context_exception_group.exceptions)
+                elif isinstance(active_reasoner_consideration_failure_context, ExceptionGroup):
+                    inner_exceptions:list[Exception | ExceptionGroup[Exception | Any] | Any] = list(active_reasoner_consideration_failure_context.exceptions)
                     inner_exceptions.append(e)
                     active_reasoner_consideration_failure_context = ExceptionGroup("active reasoner considerations ExceptionGroup for Reasoner " + self.guid,inner_exceptions)
                 else:
@@ -478,7 +625,7 @@ class PlanComparisonStrategy(metaclass=ABCMeta):
             elif token == PlanComparisonStrategyToken.satisfied_percentage_median_des:
                 keys.append(-plan.median_satisfied_percentage())
         # to guarantee a total ordering
-        keys.append(plan.guid)
+        #keys.append(plan.guid)
         # it actually should be totally ordered by this point but just to make extra sure.
         keys.append(plan.__str__())
         keys.append(plan.__hash__())
