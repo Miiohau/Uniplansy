@@ -1,9 +1,11 @@
 # see https://packaging.python.org/en/latest/guides/writing-pyproject-toml/ for more info on pyproject.toml files
 [build-system]
-# TODO: select a build system and put it infomation here
+# hatchling selected because it was the default in the above guide and the appearent nature of the hatch tool set
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
 
 [project]
-name = "Universal_Planner"
+name = "Uniplansy"
 dynamic = ["version"]
 dependencies = [
     'immutabledict'
@@ -11,30 +13,34 @@ dependencies = [
 requires-python = ">= 3.11"
 authors = [{name = "miiohau", email = "Miiohau@gmail.com"}]
 maintainers = [{name = "miiohau", email = "Miiohau@gmail.com"}]
-description = "A framework for making planning systems"
+description = "Uniplansy(UNIversal PLANning SYstem). A framework for making planning systems."
 readme = "README.md"
-# TODO: uncomment next line and add SPDX license expression (https://packaging.python.org/en/latest/glossary/#term-License-Expression)
-# license =
-keywords = ["ai planning", "planning", "HTN", "STRIPS", "Game AI pro"]
+license = "Apache-2.0"
+license-files = ["LICENSE.txt"]
+keywords = ["ai planning", "Automated Planning", "planning", "HTN", "STRIPS", "RDDL", "Game AI pro"]
 
 classifiers = [
-    #see https://pypi.org/classifiers/ for full value
-    # TODO: may want to update after selecting a license
-  # How mature is this project? Common values are
-  #   3 - Alpha
-  #   4 - Beta
-  #   5 - Production/Stable
-  "Development Status :: 1 - Planning",
+    #see https://pypi.org/classifiers/ for full values
+    # How mature is this project? Common values are
+    #   3 - Alpha
+    #   4 - Beta
+    #   5 - Production/Stable
+    "Development Status :: 1 - Planning",
 
-  # Indicate who your project is intended for
-  "Intended Audience :: Developers",
+    # Indicate who your project is intended for
+    "Intended Audience :: Developers",
+    "Intended Audience :: Other Audience",
     "Natural Language :: English",
-  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 
-  # Specify the Python versions you support here.
-  "Programming Language :: Python :: 3.11",
+    # Specify the Python versions you support here.
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     #remove next line when ready to upload to PyPI
     "Private :: Do Not Upload"
 ]
