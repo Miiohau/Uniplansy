@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import copy
-from abc import ABCMeta, abstractmethod
-from enum import Enum, auto
-from typing import TypeVar, Generic, Optional, List, Tuple, Any
+from abc import ABCMeta
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import TypeVar, Generic, Optional, List, Any
 
 from uniplansy.reasoners.considerations.core import ReasonerConsideration
 
@@ -30,21 +31,40 @@ class TryingToEnterARunningReasonerException(ReasonerEnterException):
     pass
 
 class ReasonerState(Enum):
-    Not_Started = auto()
-    Running = auto()
-    Done = auto()
-    Failed = auto()
+    Not_Started = ("not started",False,False)
+    Waiting = ("waiting",True,False)
+    Continue = ("continue", True, False)
+    Running = ("running",True,False)
+    Done = ("done",False,True)
+    Failed = ("failed",False,True)
+
+    def __init__(self, name:str, is_in_progress_state:bool, is_finalized_state:bool):
+        self._name_ = name
+        self.is_finalized_state = is_finalized_state
+        self.is_in_progress_state = is_in_progress_state
+
+@dataclass
+class SubReasonerStruct:
+    reasoner: Reasoner
+    active_reasoner_considerations: List[ReasonerConsideration] = field(default_factory=list)
+    entered_sub_reasoner: bool = field(default=False, init=False)
+    should_null_sub_reasoner: bool = field(default=False, init=False)
+    last_update_state: ReasonerState = field(default=ReasonerState.Not_Started, init=False)
+    enter_state: ReasonerState = field(default=ReasonerState.Not_Started, init=False)
 
 class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCMeta):
-    sub_reasoner:Optional[Reasoner]
-    active_reasoner_considerations:List[ReasonerConsideration]
+    active_sub_reasoners:List[SubReasonerStruct]
     state:ReasonerState
-    should_null_sub_reasoner:bool
     failure_context:Optional[Exception]
-    entered_sub_reasoner:bool
 
-    def __init__(self, guid:str):
+    def __init__(self, guid:str, start_conditions:List[ReasonerConsideration]=None, run_conditions:List[ReasonerConsideration]=None):
+        if start_conditions is None:
+            start_conditions = []
+        if run_conditions is None:
+            run_conditions = []
         self.guid = guid
+        self.start_conditions = start_conditions
+        self.run_conditions = run_conditions
         self.active_reasoner_considerations = []
         self.sub_reasoner = None
         self.state = ReasonerState.Not_Started
@@ -53,13 +73,25 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
         self.failure_context = None
 
     # noinspection PyMethodMayBeStatic,PyUnusedLocal
-    def think(self, update_context:Reasoner_Update_Context_Type) -> Optional[Tuple[Reasoner, Optional[List[ReasonerConsideration]]]]:
+    def think(self, update_context:Reasoner_Update_Context_Type) -> List[SubReasonerStruct]:
         """. Here is where you set another Reasoner as a child (by returning it) as well as any ReasonerConsiderations that have to remain true for that Reasoner to remain a valid choice."""
-        return None
+        return []
 
-    # noinspection PyMethodMayBeStatic,PyUnusedLocal
     def sense(self, world:World_Type, update_context:Reasoner_Update_Context_Type) -> Reasoner_Update_Context_Type:
         """updates the internal state of the Reasoner and adds notes to update_context"""
+        if not self.state.is_finalized_state:
+            can_run = True
+            for cur_condition in self.start_conditions:
+                can_run = can_run and cur_condition.is_valid_state(world)
+            if can_run:
+                self.state = ReasonerState.Continue
+            else:
+                self.state = ReasonerState.Waiting
+        failed = False
+        for cur_condition in self.run_conditions:
+            failed = failed or not cur_condition.is_valid_state(world)
+        if failed:
+            self.state = ReasonerState.Failed
         return update_context
 
     # noinspection PyUnusedLocal
@@ -75,7 +107,10 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
         if self.state == ReasonerState.Failed:
             raise TryingToEnterAFailedReasonerException() from self.failure_context
         if self.state == ReasonerState.Not_Started:
-            self.state = ReasonerState.Running
+            if len(self.start_conditions) == 0:
+                self.state = ReasonerState.Running
+            else:
+                self.state = ReasonerState.Waiting
         return self.state
 
     def exit(self, update_context:Reasoner_Update_Context_Type):
@@ -88,81 +123,114 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
             self.state = ReasonerState.Done
 
     # noinspection PyUnusedLocal
-    def handle_active_reasoner_consideration_failure(self, update_context:Reasoner_Update_Context_Type, failure_context:Optional[Exception]):
+    def handle_active_reasoner_consideration_failure(self,child:SubReasonerStruct,failed_considerations:list[ReasonerConsideration], update_context:Reasoner_Update_Context_Type, failure_context:Optional[Exception]):
         self.state = ReasonerState.Failed
         self.failure_context = failure_context
 
     # noinspection PyUnusedLocal
-    def handle_child_failure(self, update_context:Reasoner_Update_Context_Type, failure_context:Optional[Exception]):
+    def handle_child_failure(self, child:SubReasonerStruct, update_context:Reasoner_Update_Context_Type, failure_context:Optional[Exception]):
         self.state = ReasonerState.Failed
         new_failure_context:ChildFailureException = ChildFailureException()
         new_failure_context.__cause__ = failure_context
         self.failure_context = new_failure_context
 
-    def handle_child_enter_failure(self, update_context:Reasoner_Update_Context_Type,failure_context:Optional[Exception]):
-        self.handle_child_failure(update_context,failure_context)
+    def handle_child_enter_failure(self, child:SubReasonerStruct, update_context:Reasoner_Update_Context_Type,failure_context:Optional[Exception]):
+        self.handle_child_failure(child,update_context,failure_context)
 
-    # noinspection PyUnusedLocal
-    def _null_sub_reasoner(self, update_context:Reasoner_Update_Context_Type):
-        self.active_reasoner_considerations = []
-        self.sub_reasoner = None
-        self.entered_sub_reasoner = False
+    def handle_child_success(self, child:SubReasonerStruct, update_context:Reasoner_Update_Context_Type):
+        pass
 
     def update(self, world:World_Type, parent_update_context:Reasoner_Update_Context_Type) -> ReasonerState:
         update_context = copy.deepcopy(parent_update_context)
         update_context = self.sense(world, update_context)
-        should_continue = True
-        active_reasoner_consideration_failure_context :Optional[Exception] = None
-        for current_reasoner_consideration in self.active_reasoner_considerations:
-            try:
-                should_continue = should_continue and current_reasoner_consideration.is_valid_state(world)
-            except ReasonerException as e:
-                if active_reasoner_consideration_failure_context is None:
-                    active_reasoner_consideration_failure_context = e
-                elif isinstance(active_reasoner_consideration_failure_context, ExceptionGroup):
-                    inner_exceptions:list[Exception | ExceptionGroup[Exception | Any] | Any] = list(active_reasoner_consideration_failure_context.exceptions)
-                    inner_exceptions.append(e)
-                    active_reasoner_consideration_failure_context = ExceptionGroup("active reasoner considerations ExceptionGroup for Reasoner " + self.guid,inner_exceptions)
-                else:
-                    inner_exceptions: list[Exception | ExceptionGroup[Exception | Any] | Any] = list()
-                    inner_exceptions.append(active_reasoner_consideration_failure_context)
-                    inner_exceptions.append(e)
-                    active_reasoner_consideration_failure_context = ExceptionGroup("active reasoner considerations ExceptionGroup for Reasoner " + self.guid, inner_exceptions)
-        if not should_continue:
-            self.should_null_sub_reasoner = True
-            self.handle_active_reasoner_consideration_failure(update_context,active_reasoner_consideration_failure_context)
-            if self.should_null_sub_reasoner:
-                self.sub_reasoner.exit(update_context)
-                self._null_sub_reasoner(update_context)
-
-        if self.sub_reasoner is not None:
-            sub_reasoner_state = self.sub_reasoner.update(world, update_context)
-            if sub_reasoner_state is ReasonerState.Failed:
-                self.should_null_sub_reasoner = True
-                self.handle_child_failure(update_context,self.sub_reasoner.failure_context)
-            elif sub_reasoner_state is ReasonerState.Done:
-                self.should_null_sub_reasoner = True
-            if (sub_reasoner_state is not ReasonerState.Running) and self.should_null_sub_reasoner:
-                self._null_sub_reasoner(update_context)
-        elif self.state == ReasonerState.Running:
-            self.sub_reasoner, self.active_reasoner_considerations = self.think(update_context)
-        if self.state != ReasonerState.Running:
+        if self.state.is_finalized_state:
             self.exit(update_context)
             return self.state
-        if self.sub_reasoner is not None:
-            if not self.entered_sub_reasoner:
-                self.entered_sub_reasoner = True
+        if self.sub_reasoner is not ReasonerState.Running:
+            return self.state
+        for curChild in self.active_sub_reasoners:
+            should_continue = True
+            active_reasoner_consideration_failure_context :Optional[Exception] = None
+            failed_considerations:list[ReasonerConsideration] = []
+            for current_reasoner_consideration in curChild.active_reasoner_considerations:
                 try:
-                    sub_reasoner_enter_state = self.sub_reasoner.enter(update_context)
+                    if not current_reasoner_consideration.is_valid_state(world):
+                        should_continue = False
+                        failed_considerations.append(current_reasoner_consideration)
                 except ReasonerException as e:
-                    self.should_null_sub_reasoner = True
-                    self.handle_child_enter_failure(update_context,e)
-                else:
-                    if (sub_reasoner_enter_state is not ReasonerState.Running) and self.should_null_sub_reasoner:
-                        self._null_sub_reasoner(update_context)
-        else:
-            self.act(world,update_context)
-        if (self.state == ReasonerState.Failed) or (self.state == ReasonerState.Done):
+                    should_continue = False
+                    failed_considerations.append(current_reasoner_consideration)
+                    if active_reasoner_consideration_failure_context is None:
+                        active_reasoner_consideration_failure_context = e
+                    elif isinstance(active_reasoner_consideration_failure_context, ExceptionGroup):
+                        inner_exceptions:list[Exception | ExceptionGroup[Exception | Any] | Any] = list(active_reasoner_consideration_failure_context.exceptions)
+                        inner_exceptions.append(e)
+                        active_reasoner_consideration_failure_context = ExceptionGroup("active reasoner considerations ExceptionGroup for Reasoner " + self.guid,inner_exceptions)
+                    else:
+                        inner_exceptions: list[Exception | ExceptionGroup[Exception | Any] | Any] = list()
+                        inner_exceptions.append(active_reasoner_consideration_failure_context)
+                        inner_exceptions.append(e)
+                        active_reasoner_consideration_failure_context = ExceptionGroup("active reasoner considerations ExceptionGroup for Reasoner " + self.guid, inner_exceptions)
+            if not should_continue:
+                curChild.should_null_sub_reasoner = True
+                self.handle_active_reasoner_consideration_failure(curChild,failed_considerations, update_context,active_reasoner_consideration_failure_context)
+                if curChild.should_null_sub_reasoner:
+                    curChild.reasoner.exit(update_context)
+                    self.active_sub_reasoners.remove(curChild)
+        for curChild in self.active_sub_reasoners:
+            curChild.last_update_state = curChild.reasoner.update(world, update_context)
+            if curChild.last_update_state is ReasonerState.Failed:
+                curChild.should_null_sub_reasoner = True
+                self.handle_child_failure(update_context,curChild,curChild.reasoner.failure_context)
+            elif curChild.last_update_state is ReasonerState.Done:
+                curChild.should_null_sub_reasoner = True
+                self.handle_child_success(update_context,curChild)
+            elif self.state.is_in_progress_state:
+                if curChild.last_update_state is ReasonerState.Running:
+                    self.state = ReasonerState.Running
+                elif self.state is ReasonerState.Continue:
+                    self.state = curChild.last_update_state
+            if curChild.last_update_state.is_finalized_state and curChild.should_null_sub_reasoner:
+                self.active_sub_reasoners.remove(curChild)
+        possible_new_sub_reasoners: List[SubReasonerStruct] = []
+        if self.state.is_in_progress_state:
+            possible_new_sub_reasoners = self.think(update_context)
+            for curChild in possible_new_sub_reasoners:
+                if self.active_sub_reasoners.count(curChild)==0:
+                    self.active_sub_reasoners.append(curChild)
+        if self.state.is_finalized_state:
+            self.exit(update_context)
+            return self.state
+        if len(possible_new_sub_reasoners) >= 1:
+            for curChild in possible_new_sub_reasoners:
+                curChild.entered_sub_reasoner = True
+                try:
+                    curChild.enter_state = curChild.reasoner.enter(update_context)
+                    if curChild.enter_state.is_finalized_state:
+                        curChild.should_null_sub_reasoner = True
+                        if curChild.enter_state is ReasonerState.Done:
+                            self.handle_child_success(update_context,curChild)
+                except ReasonerException as e:
+                    curChild.should_null_sub_reasoner = True
+                    curChild.enter_state = ReasonerState.Failed
+                    self.handle_child_enter_failure(curChild,update_context,e)
+                if curChild.enter_state.is_finalized_state and curChild.should_null_sub_reasoner:
+                    self.active_sub_reasoners.remove(curChild)
+        self.act(world,update_context)
+        if self.state.is_finalized_state:
             self.exit(update_context)
         return self.state
 
+# basic Reasoners to use as building blocks
+# Priority Sequence (short-circuiting) - invokes it's sub reasoners until one actual does work. Fails quickly if one of its sub reasoners fails.
+# Priority Sequence (non-short-circuiting) - invokes it's sub reasoners until one actual does work
+# Sequence (short-circuiting) - all must complete in order for success. Stops and returns failure at the first failure.
+# Sequence (non-short-circuiting) - all must complete in order for success.
+# Any (single threaded, short-circuiting) - any can compete successfully for this Reasoner to return success
+# Any (multithreaded, short-circuiting) - any can compete successfully for this Reasoner to return success. Runs more than one sub Reasoners at the same time but all running sub Reasoners are exited after the first one completes successfully.
+# Any (single threaded, non-short-circuiting) - any can compete successfully for this Reasoner to return success
+# Any (multithreaded, non-short-circuiting) - any can compete successfully for this Reasoner to return success. Runs more than one sub Reasoners at the same time and all sub Reasoners allowed to complete or fail.
+# All (single threaded, short-circuiting) - all must compete successfully for this Reasoner to return success but in any order
+# All (multithreaded, short-circuiting) - all must compete successfully for this Reasoner to return success but in any order. Runs more than one sub Reasoners at the same time but  all running sub Reasoners are exited if one fails.
+# All (single threaded, non-short-circuiting) - all must compete successfully for this Reasoner to return success but in any order
+# All (multithreaded, non-short-circuiting) - all must compete successfully for this Reasoner to return success but in any order. Runs more than one sub Reasoners at the same time and all sub Reasoners allowed to complete or fail.
