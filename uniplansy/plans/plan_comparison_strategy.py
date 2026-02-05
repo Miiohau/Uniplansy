@@ -26,7 +26,8 @@ class PlanComparisonStrategyToken(Enum):
 class PlanComparisonStrategy(metaclass=ABCMeta):
 
     def __init__(self, order: List[PlanComparisonStrategyToken]):
-        self.order = order
+        super().__init__()
+        self.order: List[PlanComparisonStrategyToken] = order
 
     def task_to_tuple_key(self, task: Task) -> Tuple:
         keys = []

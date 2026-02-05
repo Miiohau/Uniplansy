@@ -49,3 +49,18 @@ class Task(PlanGraphNode):
 
     def get_clamped_satisfied_percentage(self,min_value:float,max_value:float):
         return min(max(self.satisfied_percentage,min_value),max_value)
+
+    # @override
+    def is_compatible_with(self, other:PlanGraphNode)-> bool:
+        if isinstance(other, Task):
+            return self.description == other.description
+        return NotImplemented
+
+    def set_matching_deep_copy(self,other,memo):
+        super().set_matching_deep_copy(other,memo)
+        self.description = other.description
+        self.motivation = other.motivation
+        self.estimated_cost = other.estimated_cost
+        self.min_cost = other.min_cost
+        self.max_cost = other.max_cost
+        self.satisfied_percentage = other.satisfied_percentage

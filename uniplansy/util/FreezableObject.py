@@ -4,7 +4,9 @@ from dataclasses import FrozenInstanceError
 
 class FreezableObject:
     """an object that can be frozen and unfrozen. This class itself follows definition of frozen defined by dataclasses as of 2026 January 24. However, subclasses are free to add additional semantics to the freeze and unfreeze operations."""
-    frozen: bool = False
+
+    def __init__(self):
+        self.frozen:bool = False
 
     def freeze(self):
         """freeze the object. Meaning it is protected from modification"""
@@ -19,10 +21,14 @@ class FreezableObject:
         self.unfreeze()
 
     def deep_copy_and_unfreeze(self):
-        """deep copy and unfreezes the copy of the FreezableObject. Always safe because a deep copy should be completely independent of the original object"""
+        """deep copy and unfreezes the copy of the FreezableObject. Should always be safe because a deep copy of a FreezableObject should be completely independent of the original object"""
         new_copy = copy.deepcopy(self)
         new_copy.unfreeze()
         return new_copy
+
+    # noinspection PyUnusedLocal
+    def set_matching_deep_copy(self,other,memo):
+        other.frozen = self.frozen
 
 
     # @override

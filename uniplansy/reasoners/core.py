@@ -1,4 +1,4 @@
-#TODO: (after upgrading to python 3.12) Remove convert to new Type Parameter Syntax
+
 #TODO: (after updating to python 3.14 (in which Annotations are lazily evaluated by default)) remove "from __future__ import annotations"
 from __future__ import annotations
 
@@ -9,7 +9,9 @@ from enum import Enum
 from typing import TypeVar, Generic, Optional, List, Any
 
 from uniplansy.reasoners.considerations.core import ReasonerConsideration
+from uniplansy.util.id_registry import IDRegistry
 
+#TODO: (after upgrading to python 3.12) Remove convert to new Type Parameter Syntax
 Reasoner_Update_Context_Type = TypeVar('Reasoner_Update_Context_Type')
 World_Type = TypeVar('World_Type')
 
@@ -39,9 +41,9 @@ class ReasonerState(Enum):
     Failed = ("failed",False,True)
 
     def __init__(self, name:str, is_in_progress_state:bool, is_finalized_state:bool):
-        self._name_ = name
-        self.is_finalized_state = is_finalized_state
-        self.is_in_progress_state = is_in_progress_state
+        self._name_:str = name
+        self.is_finalized_state:bool = is_finalized_state
+        self.is_in_progress_state:bool = is_in_progress_state
 
 @dataclass
 class SubReasonerStruct:
@@ -53,29 +55,36 @@ class SubReasonerStruct:
     enter_state: ReasonerState = field(default=ReasonerState.Not_Started, init=False)
 
 class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCMeta):
-    active_sub_reasoners:List[SubReasonerStruct]
-    state:ReasonerState
-    failure_context:Optional[Exception]
 
-    def __init__(self, guid:str, start_conditions:List[ReasonerConsideration]=None, run_conditions:List[ReasonerConsideration]=None):
+
+    def __init__(self, uid:str, id_registry:IDRegistry[Reasoner], start_conditions:List[ReasonerConsideration]=None, run_conditions:List[ReasonerConsideration]=None):
+        super().__init__()
         if start_conditions is None:
             start_conditions = []
         if run_conditions is None:
             run_conditions = []
-        self.guid = guid
-        self.start_conditions = start_conditions
-        self.run_conditions = run_conditions
-        self.active_reasoner_considerations = []
-        self.sub_reasoner = None
-        self.state = ReasonerState.Not_Started
-        self.should_null_sub_reasoner = False
-        self.entered_sub_reasoner = False
-        self.failure_context = None
+        self.uid:str = uid
+        self.id_registry:IDRegistry[Reasoner] = id_registry
+        self.start_conditions:List[ReasonerConsideration] = start_conditions
+        self.run_conditions:List[ReasonerConsideration] = run_conditions
+        self.state:ReasonerState = ReasonerState.Not_Started
+        self.failure_context:Optional[Exception] = None
+        self.active_sub_reasoners:List[SubReasonerStruct] = []
+
+    # noinspection PyUnusedLocal
+    def handle_self_caused_errors(self, update_context:Reasoner_Update_Context_Type, error:BaseException):
+        """handles self-caused errors. In general subclasses shouldn't override this method instead they should handle the error inside the method causing it."""
+        self.state = ReasonerState.Failed
+        self.failure_context = error
 
     # noinspection PyMethodMayBeStatic,PyUnusedLocal
     def think(self, update_context:Reasoner_Update_Context_Type) -> List[SubReasonerStruct]:
-        """. Here is where you set another Reasoner as a child (by returning it) as well as any ReasonerConsiderations that have to remain true for that Reasoner to remain a valid choice."""
+        """. Here is where you set other Reasoners as a children (by returning them) as well as any ReasonerConsiderations that have to remain true for that Reasoner to remain a valid choice."""
         return []
+
+    def handle_think_error(self, update_context:Reasoner_Update_Context_Type, error:BaseException):
+        """handles self-caused errors leaving the think method. In general subclasses shouldn't override this method instead they should handle the error inside the think method."""
+        self.handle_self_caused_errors(update_context, error)
 
     def sense(self, world:World_Type, update_context:Reasoner_Update_Context_Type) -> Reasoner_Update_Context_Type:
         """updates the internal state of the Reasoner and adds notes to update_context"""
@@ -95,9 +104,20 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
         return update_context
 
     # noinspection PyUnusedLocal
+    def handle_sense_error(self, world:World_Type, update_context:Reasoner_Update_Context_Type, error:BaseException):
+        """handles self-caused errors leaving the sense method. In general subclasses shouldn't override this method instead they should handle the error inside the sense method."""
+        self.handle_self_caused_errors(update_context, error)
+
+    # noinspection PyUnusedLocal
     def act(self, world:World_Type, update_context:Reasoner_Update_Context_Type):
         """preforms actions in the world. This implementation only sets the Reasoner's state to done"""
         self.state = ReasonerState.Done
+
+    # noinspection PyUnusedLocal
+    def handle_act_error(self, world: World_Type, update_context: Reasoner_Update_Context_Type,
+                               error: BaseException):
+        """handles self-caused errors leaving the act method. In general subclasses shouldn't override this method instead they should handle the error inside the act method."""
+        self.handle_self_caused_errors(update_context, error)
 
     # noinspection PyUnusedLocal
     def enter(self, update_context:Reasoner_Update_Context_Type) -> ReasonerState:
@@ -115,10 +135,9 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
 
     def exit(self, update_context:Reasoner_Update_Context_Type):
         """tells the Reasoner to clean up and exit"""
-        if self.sub_reasoner is not None:
-            self.sub_reasoner.exit(update_context)
-            self.active_reasoner_considerations = []
-            self.sub_reasoner = None
+        for cur_sub_reasoner_struct in self.active_sub_reasoners:
+            cur_sub_reasoner_struct.reasoner.exit(update_context)
+        self.active_sub_reasoners = []
         if self.state != ReasonerState.Failed:
             self.state = ReasonerState.Done
 
@@ -142,7 +161,10 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
 
     def update(self, world:World_Type, parent_update_context:Reasoner_Update_Context_Type) -> ReasonerState:
         update_context = copy.deepcopy(parent_update_context)
-        update_context = self.sense(world, update_context)
+        try:
+            update_context = self.sense(world, update_context)
+        except BaseException as error:
+            self.handle_sense_error(world, update_context, error)
         if self.state.is_finalized_state:
             self.exit(update_context)
             return self.state
@@ -165,12 +187,12 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
                     elif isinstance(active_reasoner_consideration_failure_context, ExceptionGroup):
                         inner_exceptions:list[Exception | ExceptionGroup[Exception | Any] | Any] = list(active_reasoner_consideration_failure_context.exceptions)
                         inner_exceptions.append(e)
-                        active_reasoner_consideration_failure_context = ExceptionGroup("active reasoner considerations ExceptionGroup for Reasoner " + self.guid,inner_exceptions)
+                        active_reasoner_consideration_failure_context = ExceptionGroup("active reasoner considerations ExceptionGroup for Reasoner " + self.uid, inner_exceptions)
                     else:
                         inner_exceptions: list[Exception | ExceptionGroup[Exception | Any] | Any] = list()
                         inner_exceptions.append(active_reasoner_consideration_failure_context)
                         inner_exceptions.append(e)
-                        active_reasoner_consideration_failure_context = ExceptionGroup("active reasoner considerations ExceptionGroup for Reasoner " + self.guid, inner_exceptions)
+                        active_reasoner_consideration_failure_context = ExceptionGroup("active reasoner considerations ExceptionGroup for Reasoner " + self.uid, inner_exceptions)
             if not should_continue:
                 curChild.should_null_sub_reasoner = True
                 self.handle_active_reasoner_consideration_failure(curChild,failed_considerations, update_context,active_reasoner_consideration_failure_context)
@@ -194,7 +216,10 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
                 self.active_sub_reasoners.remove(curChild)
         possible_new_sub_reasoners: List[SubReasonerStruct] = []
         if self.state.is_in_progress_state:
-            possible_new_sub_reasoners = self.think(update_context)
+            try:
+                possible_new_sub_reasoners = self.think(update_context)
+            except BaseException as error:
+                self.handle_think_error(update_context,error)
             for curChild in possible_new_sub_reasoners:
                 if self.active_sub_reasoners.count(curChild)==0:
                     self.active_sub_reasoners.append(curChild)
@@ -216,7 +241,10 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
                     self.handle_child_enter_failure(curChild,update_context,e)
                 if curChild.enter_state.is_finalized_state and curChild.should_null_sub_reasoner:
                     self.active_sub_reasoners.remove(curChild)
-        self.act(world,update_context)
+        try:
+            self.act(world,update_context)
+        except BaseException as error:
+            self.handle_act_error(world,update_context,error)
         if self.state.is_finalized_state:
             self.exit(update_context)
         return self.state
