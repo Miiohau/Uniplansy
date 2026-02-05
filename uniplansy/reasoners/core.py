@@ -46,15 +46,15 @@ class ReasonerState(Enum):
         self.is_in_progress_state:bool = is_in_progress_state
 
 @dataclass
-class SubReasonerStruct:
-    reasoner: Reasoner
+class SubReasonerStruct(Generic[Reasoner_Update_Context_Type,World_Type]):
+    reasoner: Reasoner[Reasoner_Update_Context_Type,World_Type]
     active_reasoner_considerations: List[ReasonerConsideration] = field(default_factory=list)
     entered_sub_reasoner: bool = field(default=False, init=False)
     should_null_sub_reasoner: bool = field(default=False, init=False)
     last_update_state: ReasonerState = field(default=ReasonerState.Not_Started, init=False)
     enter_state: ReasonerState = field(default=ReasonerState.Not_Started, init=False)
 
-class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCMeta):
+class Reasoner(Generic[Reasoner_Update_Context_Type,World_Type],metaclass=ABCMeta):
 
 
     def __init__(self, uid:str, id_registry:IDRegistry[Reasoner], start_conditions:List[ReasonerConsideration]=None, run_conditions:List[ReasonerConsideration]=None):
@@ -69,7 +69,7 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
         self.run_conditions:List[ReasonerConsideration] = run_conditions
         self.state:ReasonerState = ReasonerState.Not_Started
         self.failure_context:Optional[Exception] = None
-        self.active_sub_reasoners:List[SubReasonerStruct] = []
+        self.active_sub_reasoners:List[SubReasonerStruct[Reasoner_Update_Context_Type,World_Type]] = []
 
     # noinspection PyUnusedLocal
     def handle_self_caused_errors(self, update_context:Reasoner_Update_Context_Type, error:BaseException):
@@ -78,7 +78,7 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
         self.failure_context = error
 
     # noinspection PyMethodMayBeStatic,PyUnusedLocal
-    def think(self, update_context:Reasoner_Update_Context_Type) -> List[SubReasonerStruct]:
+    def think(self, update_context:Reasoner_Update_Context_Type) -> List[SubReasonerStruct[Reasoner_Update_Context_Type,World_Type]]:
         """. Here is where you set other Reasoners as a children (by returning them) as well as any ReasonerConsiderations that have to remain true for that Reasoner to remain a valid choice."""
         return []
 
@@ -142,21 +142,21 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
             self.state = ReasonerState.Done
 
     # noinspection PyUnusedLocal
-    def handle_active_reasoner_consideration_failure(self,child:SubReasonerStruct,failed_considerations:list[ReasonerConsideration], update_context:Reasoner_Update_Context_Type, failure_context:Optional[Exception]):
+    def handle_active_reasoner_consideration_failure(self,child:SubReasonerStruct[Reasoner_Update_Context_Type,World_Type],failed_considerations:list[ReasonerConsideration], update_context:Reasoner_Update_Context_Type, failure_context:Optional[Exception]):
         self.state = ReasonerState.Failed
         self.failure_context = failure_context
 
     # noinspection PyUnusedLocal
-    def handle_child_failure(self, child:SubReasonerStruct, update_context:Reasoner_Update_Context_Type, failure_context:Optional[Exception]):
+    def handle_child_failure(self, child:SubReasonerStruct[Reasoner_Update_Context_Type,World_Type], update_context:Reasoner_Update_Context_Type, failure_context:Optional[Exception]):
         self.state = ReasonerState.Failed
         new_failure_context:ChildFailureException = ChildFailureException()
         new_failure_context.__cause__ = failure_context
         self.failure_context = new_failure_context
 
-    def handle_child_enter_failure(self, child:SubReasonerStruct, update_context:Reasoner_Update_Context_Type,failure_context:Optional[Exception]):
+    def handle_child_enter_failure(self, child:SubReasonerStruct[Reasoner_Update_Context_Type,World_Type], update_context:Reasoner_Update_Context_Type,failure_context:Optional[Exception]):
         self.handle_child_failure(child,update_context,failure_context)
 
-    def handle_child_success(self, child:SubReasonerStruct, update_context:Reasoner_Update_Context_Type):
+    def handle_child_success(self, child:SubReasonerStruct[Reasoner_Update_Context_Type,World_Type], update_context:Reasoner_Update_Context_Type):
         pass
 
     def update(self, world:World_Type, parent_update_context:Reasoner_Update_Context_Type) -> ReasonerState:
@@ -167,8 +167,6 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
             self.handle_sense_error(world, update_context, error)
         if self.state.is_finalized_state:
             self.exit(update_context)
-            return self.state
-        if self.sub_reasoner is not ReasonerState.Running:
             return self.state
         for curChild in self.active_sub_reasoners:
             should_continue = True
@@ -199,6 +197,7 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
                 if curChild.should_null_sub_reasoner:
                     curChild.reasoner.exit(update_context)
                     self.active_sub_reasoners.remove(curChild)
+        """TODO: allow customization of how the active_sub_reasoners are run"""
         for curChild in self.active_sub_reasoners:
             curChild.last_update_state = curChild.reasoner.update(world, update_context)
             if curChild.last_update_state is ReasonerState.Failed:
@@ -214,7 +213,7 @@ class Reasoner((Generic[Reasoner_Update_Context_Type,World_Type]),metaclass=ABCM
                     self.state = curChild.last_update_state
             if curChild.last_update_state.is_finalized_state and curChild.should_null_sub_reasoner:
                 self.active_sub_reasoners.remove(curChild)
-        possible_new_sub_reasoners: List[SubReasonerStruct] = []
+        possible_new_sub_reasoners: List[SubReasonerStruct[Reasoner_Update_Context_Type,World_Type]] = []
         if self.state.is_in_progress_state:
             try:
                 possible_new_sub_reasoners = self.think(update_context)

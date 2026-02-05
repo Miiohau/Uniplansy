@@ -1,38 +1,5 @@
-import threading
 from dataclasses import dataclass, field
-from threading import local
 from typing import TypeVar, Generic, Optional
-
-_module_thread_local_data = local()
-
-
-
-_thread_sequence : int = 0
-_thread_sequence_lock = threading.Lock()
-
-def create_thread_guid(prefix: str = "thread") -> str:
-    """creates a globally unique id for use as a name of a thread."""
-    global _thread_sequence,_thread_sequence_lock
-    with _thread_sequence_lock:
-        guid: str = prefix + "*" + str(_thread_sequence)
-        _thread_sequence += 1
-    return guid
-
-_module_thread_local_data.sequence = 0
-
-def create_guid_thread_local(prefix: str ="") -> str:
-    """creates a guid in the context of the current thread. Note: assumes if the current thread is named that name is globally unique (you can create globally unique thread names via the create_thread_guid function). The prefix is recommended to give context in case the guid shows up somewhere."""
-    global _module_thread_local_data
-    thread_id:str
-    current_thread_name = threading.current_thread().name
-    current_thread_has_name = current_thread_name and current_thread_name.strip()
-    if current_thread_has_name:
-        thread_id = current_thread_name
-    else:
-        thread_id = "thread:" + str(threading.get_ident())
-    guid: str = prefix +"$" + thread_id + "#" + str(_module_thread_local_data.sequence)
-    _module_thread_local_data.sequence += 1
-    return guid
 
 class RegistryKeyError(ValueError):
     pass
@@ -45,6 +12,7 @@ class RegistryKeyAlreadyExistsError(RegistryKeyError):
     def __init__(self, msg='ID already registered', *args):
         super().__init__(msg, *args)
 
+#TODO: (after upgrading to python 3.12) Remove TypeVars and convert to new Type Parameter Syntax
 Registered_Object = TypeVar('Registered_Object')
 
 @dataclass
