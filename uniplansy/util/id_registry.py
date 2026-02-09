@@ -1,6 +1,9 @@
 from dataclasses import dataclass, field
 from typing import TypeVar, Generic, Optional
 
+from uniplansy.util.guid_suppliers.guid_supplier import GUIDSupplier
+
+
 class RegistryKeyError(ValueError):
     pass
 
@@ -18,6 +21,7 @@ Registered_Object = TypeVar('Registered_Object')
 @dataclass
 class IDRegistry(Generic[Registered_Object]):
     registry:dict[str, Registered_Object] = field(default_factory=dict[str, Optional[Registered_Object]], init=False)
+    guid_supplier:Optional[GUIDSupplier] = None
 
 
     def __eq__(self, other):
@@ -47,4 +51,4 @@ class IDRegistry(Generic[Registered_Object]):
 
 
 
-guid_registry:IDRegistry[object] = IDRegistry()
+#default_guid_registry:IDRegistry[object] = IDRegistry()

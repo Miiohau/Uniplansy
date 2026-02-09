@@ -1,6 +1,6 @@
 #TODO: (after upgrading to python 3.12) uncomment @override Decorators
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Self
 
 from immutabledict import immutabledict
 
@@ -56,7 +56,7 @@ class Task(PlanGraphNode):
             return self.description == other.description
         return NotImplemented
 
-    def set_matching_deep_copy(self,other,memo):
+    def set_matching_deep_copy(self,other:Self,memo):
         super().set_matching_deep_copy(other,memo)
         self.description = other.description
         self.motivation = other.motivation

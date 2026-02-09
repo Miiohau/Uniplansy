@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import statistics
 from dataclasses import dataclass, field, FrozenInstanceError
-from typing import Optional, List
+from typing import Optional, List, Self
 
 from uniplansy.tasks.task_filter import TaskFilter
 from uniplansy.tasks.tasks import Task
@@ -46,7 +46,7 @@ class PlanGraphNode(FreezableObject):
         """return true if PlanGraphNode is compatible with other"""
         return self == other
 
-    def set_matching_deep_copy(self,other,memo):
+    def set_matching_deep_copy(self,other:Self,memo):
         super().set_matching_deep_copy(other,memo)
         other.frozen_parents = copy.deepcopy(self.frozen_parents,memo)
         other.frozen_children = copy.deepcopy(self.frozen_children,memo)
@@ -169,7 +169,7 @@ class Plan(FreezableObject):
         for node in self.tasks_by_UID.values():
             node.unfreeze()
 
-    def set_matching_deep_copy(self,other,memo):
+    def set_matching_deep_copy(self,other:Self,memo):
         super().set_matching_deep_copy(other,memo)
         other.nodes_by_UID = copy.deepcopy(self.nodes_by_UID, memo)
         other.tasks_by_UID = copy.deepcopy(self.tasks_by_UID, memo)

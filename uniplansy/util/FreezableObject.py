@@ -1,8 +1,12 @@
 #TODO: (after upgrading to python 3.12) uncomment @override Decorators
 import copy
 from dataclasses import FrozenInstanceError
+from typing import Self
 
-class FreezableObject:
+from uniplansy.util.custom_copyable import CustomCopyable
+
+
+class FreezableObject(CustomCopyable):
     """an object that can be frozen and unfrozen. This class itself follows definition of frozen defined by dataclasses as of 2026 January 24. However, subclasses are free to add additional semantics to the freeze and unfreeze operations."""
 
     def __init__(self):
@@ -27,7 +31,8 @@ class FreezableObject:
         return new_copy
 
     # noinspection PyUnusedLocal
-    def set_matching_deep_copy(self,other,memo):
+    # @override
+    def set_matching_deep_copy(self,other:Self,memo):
         other.frozen = self.frozen
 
 
