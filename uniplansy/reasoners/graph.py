@@ -16,12 +16,32 @@ from uniplansy.util.id_registry import IDRegistry
 @dataclass
 class ReasonerBuilder(CustomCopyable,metaclass=ABCMeta):
     """builds Reasoners. Note the name is slight misnomer this class can create more than one Reasoner, the build method merely returns the root Reasoner"""
+
+
+    @abstractmethod
+    def build(self, id_registry:IDRegistry[ReasonerBuilder],guid_supplier:Optional[GUIDSupplier] = None) -> Reasoner:
+        """builds the Reasoner. Note: id_registry may not be finalized or even contain all the uids contained in sub_reasoner_uids at the time this is called so the id_registry should be passed to the instance if needed."""
+        pass
+
+
+
+@dataclass
+class ReasonerBuilderBase(ReasonerBuilder,metaclass=ABCMeta):
     sub_reasoner_uids: List[str] = field(default_factory=list)
     preferred_name: str = ""
     uid: Optional[str] = field(default=None, init=False)
-    template_guid_supplier:Optional[GUIDSupplier] = None
+    template_guid_supplier: Optional[GUIDSupplier] = None
     start_conditions: List[ReasonerConsideration] = None,
     run_conditions: List[ReasonerConsideration] = None
+
+    # @override
+    def set_matching_deep_copy(self, other: Self, memo):
+        other.sub_reasoner_uids = copy.deepcopy(self.sub_reasoner_uids, memo)
+        other.preferred_name = self.preferred_name
+        other.template_guid_supplier = self.template_guid_supplier
+        other.start_conditions = copy.deepcopy(other.start_conditions)
+        other.run_conditions = copy.deepcopy(other.run_conditions)
+        other.uid = None
 
     def fill_unset_fields(self,id_registry:Optional[IDRegistry[ReasonerBuilder]] = None,guid_supplier:Optional[GUIDSupplier] = None):
         """this is helper method to fill ReasonerBuilder fields not required at init time but required at build time"""
@@ -39,22 +59,9 @@ class ReasonerBuilder(CustomCopyable,metaclass=ABCMeta):
             if isinstance(guid_supplier_to_use, UniqueInIDRegistryGUIDSupplierWrapper) and old_id_registry is not None:
                 guid_supplier_to_use.registry = old_id_registry
 
-    @abstractmethod
-    def build(self, id_registry:IDRegistry[ReasonerBuilder],guid_supplier:Optional[GUIDSupplier] = None) -> Reasoner:
-        """builds the Reasoner. Note: id_registry may not be finalized or even contain all the uids contained in sub_reasoner_uids at the time this is called so the id_registry should be passed to the instance if needed."""
-        pass
-
-    # @override
-    def set_matching_deep_copy(self, other:Self, memo):
-        other.sub_reasoner_uids = copy.deepcopy(self.sub_reasoner_uids,memo)
-        other.preferred_name = self.preferred_name
-        other.template_guid_supplier = self.template_guid_supplier
-        other.start_conditions = copy.deepcopy(other.start_conditions)
-        other.run_conditions = copy.deepcopy(other.run_conditions)
-        other.uid = None
 
 @dataclass
-class CommonReasonerBuilder(ReasonerBuilder):
+class CommonReasonerBuilder(ReasonerBuilderBase):
     all_semantics: Optional[bool] = None,
     any_semantics: Optional[bool] = None,
     multithreaded: bool = False,
@@ -92,7 +99,7 @@ class CommonReasonerBuilder(ReasonerBuilder):
                                         run_conditions=self.run_conditions)
 
 @dataclass
-class PrioritySequenceReasonerBuilder(ReasonerBuilder):
+class PrioritySequenceReasonerBuilder(ReasonerBuilderBase):
     all_semantics: Optional[bool] = True,
     any_semantics: Optional[bool] = None,
     short_circuiting: bool = True,
@@ -125,6 +132,16 @@ class PrioritySequenceReasonerBuilder(ReasonerBuilder):
                                         default_finished_state=self.default_finished_state,
                                         start_conditions=self.start_conditions,
                                         run_conditions=self.run_conditions)
+
+@dataclass
+class SingletonReasonerBuilderWrapper(ReasonerBuilder):
+    wrapped_reasoner_builder:ReasonerBuilder
+    singleton:Optional[Reasoner] = field(default=None, init=False)
+
+    def build(self, id_registry: IDRegistry[ReasonerBuilder], guid_supplier: Optional[GUIDSupplier] = None) -> Reasoner:
+        if self.singleton is None:
+            self.singleton = self.wrapped_reasoner_builder.build(id_registry=id_registry, guid_supplier=guid_supplier)
+        return self.singleton
 
 #TODO: after updating to python 3.12 change this to a type statement
 ReasonerTemplate:TypeAlias = ReasonerBuilder
