@@ -60,63 +60,105 @@ class Plan(FreezableObject):
     id_context:IDRegistry[PlanGraphNode]
     tasks_by_UID:dict[str,Task] = field(default_factory=dict, init=False)
     nodes_by_UID:dict[str,PlanGraphNode] = field(default_factory=dict, init=False)
+    _cashed_total_motivation:Optional[float] = field(default=None, init=False, compare=False)
+    _cashed_min_cost:Optional[float] = field(default=None, init=False, compare=False)
+    _cashed_max_cost:Optional[float] = field(default=None, init=False, compare=False)
+    _cashed_average_satisfied_percentage:Optional[float] = field(default=None, init=False, compare=False)
+    _cashed_median_satisfied_percentage:Optional[float] = field(default=None, init=False, compare=False)
+    _cashed_estimated_cost:Optional[float] = field(default=None, init=False, compare=False)
+    _cashed_unsatisfied_tasks:Optional[list[Task]] = field(default=None, init=False, compare=False)
+    _cashed_leaf_tasks:Optional[list[Task]] = field(default=None, init=False, compare=False)
 
     def total_motivation(self) -> float:
         """return the total motivation of the plan"""
+        if self.frozen and (self._cashed_total_motivation is not None):
+            return self._cashed_total_motivation
         total:float = 0
         for cur_task in self.tasks_by_UID.values():
             total += (cur_task.motivation * (1-cur_task.get_clamped_satisfied_percentage(0,1)))
+        if self.frozen:
+            self._cashed_total_motivation = total
         return total
 
     def min_cost(self)  -> float:
         """return the minimum cost of the plan"""
+        if self.frozen and (self._cashed_min_cost is not None):
+            return self._cashed_min_cost
         total: float = 0
         for cur_task in self.tasks_by_UID.values():
             total += (cur_task.min_cost * (1 - cur_task.get_clamped_satisfied_percentage(0, 1)))
+        if self.frozen:
+            self._cashed_min_cost = total
         return total
 
     def estimated_cost(self) -> float:
         """return the estimated cost of the plan"""
+        if self.frozen and (self._cashed_estimated_cost is not None):
+            return self._cashed_estimated_cost
         total: float = 0
         for cur_task in self.tasks_by_UID.values():
             total += (cur_task.estimated_cost * (1 - cur_task.get_clamped_satisfied_percentage(0, 1)))
+        if self.frozen:
+            self._cashed_estimated_cost = total
         return total
 
     def max_cost(self) -> float:
         """return the maximum cost of the plan"""
+        if self.frozen and (self._cashed_max_cost is not None):
+            return self._cashed_max_cost
         total: float = 0
         for cur_task in self.tasks_by_UID.values():
             total += (cur_task.estimated_cost * (1 - cur_task.get_clamped_satisfied_percentage(0, 1)))
+        if self.frozen:
+            self._cashed_max_cost = total
         return total
 
     def average_satisfied_percentage(self) -> float:
         """return the average satisfied percentage of the tasks in the plan"""
+        if self.frozen and (self._cashed_average_satisfied_percentage is not None):
+            return self._cashed_average_satisfied_percentage
         total: float = 0
         for cur_task in self.tasks_by_UID.values():
             total += cur_task.satisfied_percentage
-        return total / len(self.tasks_by_UID)
+        r_value: float = total / len(self.tasks_by_UID)
+        if self.frozen:
+            self._cashed_average_satisfied_percentage = r_value
+        return r_value
 
     def median_satisfied_percentage(self) -> float:
         """return the median satisfied percentage of the plan"""
+        if self.frozen and (self._cashed_median_satisfied_percentage is not None):
+            return self._cashed_median_satisfied_percentage
         satisfied_percentage_values: list[float] = []
         for cur_task in self.tasks_by_UID.values():
             satisfied_percentage_values.append(cur_task.satisfied_percentage)
-        return statistics.median(satisfied_percentage_values)
+        r_value: float = statistics.median(satisfied_percentage_values)
+        if self.frozen:
+            self._cashed_median_satisfied_percentage = r_value
+        return r_value
 
     def unsatisfied_tasks(self) -> List[Task]:
         """return the unsatisfied tasks"""
+        if self.frozen and (self._cashed_unsatisfied_tasks is not None):
+            return self._cashed_unsatisfied_tasks
         r_values: list[Task] = []
         for cur_task in self.tasks_by_UID.values():
             if cur_task.satisfied_percentage <= 1:
                 r_values.append(cur_task)
+        if self.frozen:
+            self._cashed_unsatisfied_tasks = r_values
         return r_values
 
     def leaf_tasks(self) -> List[Task]:
         """return the leaf tasks"""
+        if self.frozen and (self._cashed_leaf_tasks is not None):
+            return self._cashed_leaf_tasks
         r_values: list[Task] = []
         for cur_task in self.tasks_by_UID.values():
             if len(cur_task.children) == 0:
                 r_values.append(cur_task)
+        if self.frozen:
+            self._cashed_leaf_tasks = r_values
         return r_values
 
     def filter_tasks(self, task_filter : TaskFilter) -> List[Task]:
@@ -168,11 +210,27 @@ class Plan(FreezableObject):
             node.unfreeze()
         for node in self.tasks_by_UID.values():
             node.unfreeze()
+        self._cashed_leaf_tasks = None
+        self._cashed_unsatisfied_tasks = None
+        self._cashed_max_cost = None
+        self._cashed_min_cost = None
+        self._cashed_estimated_cost = None
+        self._cashed_total_motivation = None
+        self._cashed_average_satisfied_percentage = None
+        self._cashed_median_satisfied_percentage = None
 
     def set_matching_deep_copy(self,other:Self,memo):
         super().set_matching_deep_copy(other,memo)
         other.nodes_by_UID = copy.deepcopy(self.nodes_by_UID, memo)
         other.tasks_by_UID = copy.deepcopy(self.tasks_by_UID, memo)
+        other._cashed_leaf_tasks = copy.deepcopy(self._cashed_leaf_tasks, memo)
+        other._cashed_unsatisfied_tasks = copy.deepcopy(self._cashed_unsatisfied_tasks, memo)
+        other._cashed_max_cost = self._cashed_max_cost
+        other._cashed_min_cost = self._cashed_min_cost
+        other._cashed_estimated_cost = self._cashed_estimated_cost
+        other._cashed_total_motivation = self._cashed_total_motivation
+        other._cashed_average_satisfied_percentage = self._cashed_average_satisfied_percentage
+        other._cashed_median_satisfied_percentage = self._cashed_median_satisfied_percentage
 
     # @override
     def __deepcopy__(self, memo):
