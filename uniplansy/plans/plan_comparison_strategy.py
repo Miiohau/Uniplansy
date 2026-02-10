@@ -112,8 +112,8 @@ class PlanComparisonStrategy(metaclass=ABCMeta):
         keys.append(task.description.human_understandable_string)
         keys.append(task.description.guid)
         # it actually should be totally ordered by this point but just to make extra sure.
-        keys.append(task.__str__())
-        keys.append(task.__hash__())
+        keys.append(id(task.description))
+        keys.append(id(task))
         return tuple(keys)
 
     def plan_to_tuple_key(self, plan: Plan) -> Tuple:
@@ -196,8 +196,5 @@ class PlanComparisonStrategy(metaclass=ABCMeta):
             elif token == PlanComparisonStrategyToken.satisfied_percentage_median_des:
                 keys.append(-plan.median_satisfied_percentage())
         # to guarantee a total ordering
-        #keys.append(plan.guid)
-        # it actually should be totally ordered by this point but just to make extra sure.
-        keys.append(plan.__str__())
-        keys.append(plan.__hash__())
+        keys.append(id(plan))
         return tuple(keys)
