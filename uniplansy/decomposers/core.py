@@ -2,17 +2,14 @@
 #TODO: (after updating to python 3.14 (in which Annotations are lazily evaluated by default)) remove "from __future__ import annotations"
 from __future__ import annotations
 
-import copy
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
-from typing import List, Iterable, Any, Self
+from typing import List, Any, Self
 
 from immutabledict import immutabledict
 
-from uniplansy.plans.plan import Plan, PlanGraphNode
+from uniplansy.plans.plan import Plan, PlanGraphNode, PlanDeltas
 from uniplansy.reasoners.graph import ReasonerTemplate
-from uniplansy.tasks.task_filter import TaskFilter
-from uniplansy.tasks.tasks import Task
 from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError
 
 
@@ -41,17 +38,25 @@ class Decomposer(metaclass=ABCMeta):
         self.uid:str = uid
         if register_self:
             try:
-                decomposer_registry.register(self.guid, self)
+                decomposer_registry.register(self.uid, self)
             except RegistryKeyAlreadyExistsError as e:
                 raise RegistryKeyAlreadyExistsError("A decomposer with this guid already exists!") from e
 
     @abstractmethod
-    def task_filter(self) -> TaskFilter:
-        """return the Decomposer's task filter"""
+    def applicable(self, plan:Plan) -> bool:
+        """
+        returns true if this Decomposer is applicable to the plan
+        """
         pass
 
-    def filter_tasks_planed_for(self, task_list : List[Task]) -> Iterable[Task]:
-        return self.task_filter().filter_tasks_list(task_list)
+    # noinspection PyMethodMayBeStatic
+    def estimate_deltas(self, plan:Plan) -> PlanDeltas:
+        """
+        estimates the deltas that will happen if this Decomposer is applied
+        :param plan: the plan to calculate the deltas for
+        :return: the estimated deltas that will happen if this Decomposer is applied to the plan
+        """
+        return PlanDeltas()
 
     @abstractmethod
     def decompose_tasks(self, plan:Plan) -> List[Plan]:

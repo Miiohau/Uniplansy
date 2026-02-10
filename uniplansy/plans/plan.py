@@ -7,6 +7,8 @@ import statistics
 from dataclasses import dataclass, field, FrozenInstanceError
 from typing import Optional, List, Self
 
+from immutabledict import immutabledict
+
 from uniplansy.tasks.task_filter import TaskFilter
 from uniplansy.tasks.tasks import Task
 from uniplansy.util.FreezableObject import FreezableObject
@@ -53,7 +55,15 @@ class PlanGraphNode(FreezableObject):
         other.children = copy.deepcopy(self.children,memo)
         other.parents = copy.deepcopy(self.parents,memo)
 
-
+@dataclass(frozen=True)
+class PlanDeltas:
+    total_motivation_delta: Optional[float] = None
+    min_cost_delta: Optional[float] = None
+    max_cost_delta: Optional[float] = None
+    estimated_cost_delta: Optional[float] = None
+    unsatisfied_tasks_delta: Optional[int] = None
+    leaf_tasks_delta: Optional[int] = None
+    satisfied_percentage_deltas: immutabledict[str, float] = immutabledict({})
 
 @dataclass(init=True,repr=True,eq=True)
 class Plan(FreezableObject):
