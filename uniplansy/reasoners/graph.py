@@ -6,7 +6,8 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, TypeAlias, Any, Optional, Self
 
-from uniplansy.reasoners.core import Reasoner
+from uniplansy.reasoners.considerations.core import ReasonerConsideration
+from uniplansy.reasoners.core import Reasoner, ReasonerState, ThreadableCommonReasoner, PrioritySequenceReasoner
 from uniplansy.util.custom_copyable import CustomCopyable
 from uniplansy.util.guid_suppliers.guid_supplier import GUIDSupplier, default_guid_supplier
 from uniplansy.util.guid_suppliers.wrappers.wrappers import UniqueInIDRegistryGUIDSupplierWrapper
@@ -19,6 +20,8 @@ class ReasonerBuilder(CustomCopyable,metaclass=ABCMeta):
     preferred_name: str = ""
     uid: Optional[str] = field(default=None, init=False)
     template_guid_supplier:Optional[GUIDSupplier] = None
+    start_conditions: List[ReasonerConsideration] = None,
+    run_conditions: List[ReasonerConsideration] = None
 
     def fill_unset_fields(self,id_registry:Optional[IDRegistry[ReasonerBuilder]] = None,guid_supplier:Optional[GUIDSupplier] = None):
         """this is helper method to fill ReasonerBuilder fields not required at init time but required at build time"""
@@ -44,10 +47,84 @@ class ReasonerBuilder(CustomCopyable,metaclass=ABCMeta):
     # @override
     def set_matching_deep_copy(self, other:Self, memo):
         other.sub_reasoner_uids = copy.deepcopy(self.sub_reasoner_uids,memo)
+        other.preferred_name = self.preferred_name
         other.template_guid_supplier = self.template_guid_supplier
+        other.start_conditions = copy.deepcopy(other.start_conditions)
+        other.run_conditions = copy.deepcopy(other.run_conditions)
         other.uid = None
 
+@dataclass
+class CommonReasonerBuilder(ReasonerBuilder):
+    all_semantics: Optional[bool] = None,
+    any_semantics: Optional[bool] = None,
+    multithreaded: bool = False,
+    short_circuiting: bool = True,
+    default_finished_state: Optional[ReasonerState] = None,
 
+    # @override
+    def fill_unset_fields(self,id_registry:Optional[IDRegistry[ReasonerBuilder]] = None,guid_supplier:Optional[GUIDSupplier] = None):
+        super().fill_unset_fields(id_registry,guid_supplier)
+        if (self.all_semantics is None) and (self.any_semantics is not None):
+            self.all_semantics = not self.any_semantics
+        elif (self.all_semantics is not None) and (self.any_semantics is None):
+            self.any_semantics = not self.all_semantics
+
+    # @override
+    def set_matching_deep_copy(self, other: Self, memo):
+        other.all_semantics = self.all_semantics
+        other.any_semantics = self.any_semantics
+        other.multithreaded = other.multithreaded
+        other.short_circuiting = other.short_circuiting
+        other.default_finished_state = other.default_finished_state
+
+    # @override
+    def build(self, id_registry: IDRegistry[ReasonerBuilder], guid_supplier: Optional[GUIDSupplier] = None) -> Reasoner:
+        self.fill_unset_fields(id_registry=id_registry, guid_supplier=guid_supplier)
+        return ThreadableCommonReasoner(uid=self.uid,
+                                        id_registry=id_registry,
+                                        sub_reasoner_uids=self.sub_reasoner_uids,
+                                        short_circuiting=self.short_circuiting,
+                                        multithreaded=self.multithreaded,
+                                        all_semantics=self.all_semantics,
+                                        any_semantics=self.any_semantics,
+                                        default_finished_state=self.default_finished_state,
+                                        start_conditions=self.start_conditions,
+                                        run_conditions=self.run_conditions)
+
+@dataclass
+class PrioritySequenceReasonerBuilder(ReasonerBuilder):
+    all_semantics: Optional[bool] = True,
+    any_semantics: Optional[bool] = None,
+    short_circuiting: bool = True,
+    default_finished_state: Optional[ReasonerState] = ReasonerState.Done
+
+    # @override
+    def fill_unset_fields(self,id_registry:Optional[IDRegistry[ReasonerBuilder]] = None,guid_supplier:Optional[GUIDSupplier] = None):
+        super().fill_unset_fields(id_registry,guid_supplier)
+        if (self.all_semantics is None) and (self.any_semantics is not None):
+            self.all_semantics = not self.any_semantics
+        elif (self.all_semantics is not None) and (self.any_semantics is None):
+            self.any_semantics = not self.all_semantics
+
+    # @override
+    def set_matching_deep_copy(self, other: Self, memo):
+        other.all_semantics = self.all_semantics
+        other.any_semantics = self.any_semantics
+        other.short_circuiting = other.short_circuiting
+        other.default_finished_state = other.default_finished_state
+
+    # @override
+    def build(self, id_registry: IDRegistry[ReasonerBuilder], guid_supplier: Optional[GUIDSupplier] = None) -> Reasoner:
+        self.fill_unset_fields(id_registry=id_registry, guid_supplier=guid_supplier)
+        return PrioritySequenceReasoner(uid=self.uid,
+                                        id_registry=id_registry,
+                                        sub_reasoner_uids=self.sub_reasoner_uids,
+                                        short_circuiting=self.short_circuiting,
+                                        all_semantics=self.all_semantics,
+                                        any_semantics=self.any_semantics,
+                                        default_finished_state=self.default_finished_state,
+                                        start_conditions=self.start_conditions,
+                                        run_conditions=self.run_conditions)
 
 #TODO: after updating to python 3.12 change this to a type statement
 ReasonerTemplate:TypeAlias = ReasonerBuilder
