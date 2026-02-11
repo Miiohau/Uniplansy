@@ -1,15 +1,16 @@
 #TODO: (after upgrading to python 3.12) uncomment @override Decorators
-from dataclasses import dataclass
-from typing import Any, Self
+from dataclasses import dataclass, field
+from typing import Any, Self, Optional
 
 from immutabledict import immutabledict
 
 from uniplansy.plans.plan import PlanGraphNode
+from uniplansy.util.id_registry import IDRegistry, id_registry_registry
 
 
 @dataclass(frozen=True, repr=True)
 class TaskDescription:
-    guid:str
+    uid:str
     human_understandable_string:str
     context:immutabledict[str, Any] = immutabledict({})
 
@@ -20,15 +21,15 @@ class TaskDescription:
     # @override
     def __eq__(self, other):
         if isinstance(other, TaskDescription):
-            if __debug__ and (self.guid == other.guid):
-                assert self.human_understandable_string == other.human_understandable_string, f"by guid \"{self.human_understandable_string}\" {self.guid} should equal \"{other.human_understandable_string}\" {self.guid} but they have different human understandable strings"
-                assert self.context == other.context, f"by guid \"{self.human_understandable_string}\" \"{self.guid}\" should equal \"{other.human_understandable_string}\" \"{other.guid}\" but \"{self.human_understandable_string}\" has context {self.context} and \"{other.human_understandable_string}\" has context {other.context}"
-            return self.guid == other.guid
+            if __debug__ and (self.uid == other.uid):
+                assert self.human_understandable_string == other.human_understandable_string, f"by guid \"{self.human_understandable_string}\" {self.uid} should equal \"{other.human_understandable_string}\" {self.uid} but they have different human understandable strings"
+                assert self.context == other.context, f"by guid \"{self.human_understandable_string}\" \"{self.uid}\" should equal \"{other.human_understandable_string}\" \"{other.uid}\" but \"{self.human_understandable_string}\" has context {self.context} and \"{other.human_understandable_string}\" has context {other.context}"
+            return self.uid == other.uid
         return NotImplemented
 
     # @override
     def __hash__(self) -> int:
-        return hash(self.guid)
+        return hash(self.uid)
 
     # @override
     def __copy__(self):
@@ -41,6 +42,7 @@ class TaskDescription:
 @dataclass
 class Task(PlanGraphNode):
     description:TaskDescription
+    task_description_id_context: Optional[IDRegistry[TaskDescription]] = field(default=None, init=False)
     motivation:float = 0.0
     estimated_cost: float = 0.0
     min_cost:float = 0.0
@@ -58,9 +60,30 @@ class Task(PlanGraphNode):
 
     def set_matching_deep_copy(self,other:Self,memo):
         super().set_matching_deep_copy(other,memo)
-        self.description = other.description
         self.motivation = other.motivation
         self.estimated_cost = other.estimated_cost
         self.min_cost = other.min_cost
         self.max_cost = other.max_cost
         self.satisfied_percentage = other.satisfied_percentage
+        self.task_description_id_context = other.task_description_id_context
+
+    def __deepcopy__(self, memo):
+        new_copy = Task(uid=self.uid,description=self.description)
+        self.set_matching_deep_copy(new_copy, memo)
+        return new_copy
+
+    def __getstate__(self):
+        state = super().__getstate__()
+        state['task_description_id_context_id'] = self.task_description_id_context.uid
+        del state['task_description_id_context']
+        state['description_id'] = self.description.uid
+        del state['description']
+        return state
+
+    # TODO:see if we can find a way to connect unpickled DecomposerNodes to their old notes
+    def __setstate__(self,state):
+        super().__setstate__(state)
+        self.task_description_id_context = id_registry_registry.fetch(state['task_description_id_context_id'])
+        del self.__dict__['task_description_id_context_id']
+        self.description = self.task_description_id_context.fetch(state['description_id'])
+        del self.__dict__['description_id']

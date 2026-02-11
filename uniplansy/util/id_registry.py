@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
-from typing import TypeVar, Generic, Optional
+from typing import TypeVar, Generic, Optional, Any
 
-from uniplansy.util.guid_suppliers.guid_supplier import GUIDSupplier
+from uniplansy.util.guid_suppliers.guid_supplier import GUIDSupplier, default_guid_supplier
 
 
 class RegistryKeyError(ValueError):
@@ -20,7 +20,8 @@ Registered_Object = TypeVar('Registered_Object')
 
 @dataclass
 class IDRegistry(Generic[Registered_Object]):
-    registry:dict[str, Registered_Object] = field(default_factory=dict[str, Optional[Registered_Object]], init=False)
+    uid: str = field(default_factory=default_guid_supplier.create_guid)
+    _registry:dict[str, Registered_Object] = field(default_factory=dict[str, Optional[Registered_Object]], init=False)
     guid_supplier:Optional[GUIDSupplier] = None
 
 
@@ -28,27 +29,27 @@ class IDRegistry(Generic[Registered_Object]):
         return self is other
 
     def register(self, uid:str, item:Registered_Object):
-        if (uid in self.registry) and (not (item is self.registry[uid])):
+        if (uid in self._registry) and (not (item is self._registry[uid])):
             raise RegistryKeyAlreadyExistsError()
-        self.registry[uid] = item
+        self._registry[uid] = item
 
     def contains(self, uid:str) -> bool:
-        return uid in self.registry
+        return uid in self._registry
 
     def fetch(self, uid:str) -> Optional[Registered_Object]:
-        if uid not in self.registry:
+        if uid not in self._registry:
             raise RegistryKeyNotFoundError()
-        return self.registry[uid]
+        return self._registry[uid]
 
     def retire_referred_object(self, uid:str):
-        if uid not in self.registry:
+        if uid not in self._registry:
             raise RegistryKeyNotFoundError()
-        self.registry[uid] = None
+        self._registry[uid] = None
 
     def retire_self(self):
-        for uid in self.registry:
-            self.registry[uid] = None
+        for uid in self._registry:
+            self._registry[uid] = None
 
 
 
-#default_guid_registry:IDRegistry[object] = IDRegistry()
+id_registry_registry:IDRegistry[IDRegistry[Any]] = IDRegistry(uid="__internal__.id_registry_registry")

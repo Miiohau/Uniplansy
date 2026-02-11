@@ -52,3 +52,6 @@ classifiers = [
 #Repository = "https://github.com/me/spam.git"
 #Issues = "https://github.com/me/spam/issues"
 #Changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"
+
+[project.optional-dependencies]
+jsonpickle = ["jsonpickle"]

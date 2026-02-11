@@ -10,14 +10,15 @@ from typing import Optional, List, Self
 from immutabledict import immutabledict
 
 from uniplansy.tasks.task_filter import TaskFilter
-from uniplansy.tasks.tasks import Task
+from uniplansy.tasks.tasks import Task, TaskDescription
 from uniplansy.util.FreezableObject import FreezableObject
-from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError
+from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError, id_registry_registry
 
 
 @dataclass
 class PlanGraphNode(FreezableObject):
     uid:str
+    node_id_context: Optional[IDRegistry[PlanGraphNode]] = field(default=None, init=False)
     children:set[PlanGraphNode] = field(default_factory=set, kw_only=True, compare=False)
     parents: set[PlanGraphNode] = field(default_factory=set, kw_only=True, compare=False)
     frozen_children:Optional[frozenset[PlanGraphNode]] = field(default=None, init=False, compare=False)
@@ -54,6 +55,26 @@ class PlanGraphNode(FreezableObject):
         other.frozen_children = copy.deepcopy(self.frozen_children,memo)
         other.children = copy.deepcopy(self.children,memo)
         other.parents = copy.deepcopy(self.parents,memo)
+        other.node_id_context = self.node_id_context
+
+    # @override
+    def __deepcopy__(self, memo):
+        # TODO: figure out a way to do this in a type safe way
+        new_copy = PlanGraphNode(uid=self.uid)
+        self.set_matching_deep_copy(new_copy, memo)
+        return new_copy
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['node_id_context_id'] = self.node_id_context.uid
+        del state['node_id_context']
+        return state
+
+    def __setstate__(self,state):
+        self.__dict__.update(state)
+        self.node_id_context = id_registry_registry.fetch(state['node_id_context_id'])
+        del self.__dict__['node_id_context_id']
+
 
 @dataclass(frozen=True)
 class PlanDeltas:
@@ -67,7 +88,8 @@ class PlanDeltas:
 
 @dataclass(init=True,repr=True,eq=True)
 class Plan(FreezableObject):
-    id_context:IDRegistry[PlanGraphNode]
+    node_id_context:IDRegistry[PlanGraphNode]
+    task_description_id_context: IDRegistry[TaskDescription]
     tasks_by_UID:dict[str,Task] = field(default_factory=dict, init=False)
     nodes_by_UID:dict[str,PlanGraphNode] = field(default_factory=dict, init=False)
     _cashed_total_motivation:Optional[float] = field(default=None, init=False, compare=False)
@@ -175,17 +197,22 @@ class Plan(FreezableObject):
         """filter tasks based on a TaskFilter"""
         return list(task_filter.filter_tasks_list(self.tasks_by_UID.values()))
 
+
     def add_node(self, new_node: PlanGraphNode) -> bool:
-        """add a task to this plan. Returns true if the node wasn't already in the plan"""
+        """add a task to this plan. Returns true if the node wasn't already in the plan. Any override of this method should call super."""
         if self.frozen:
             raise FrozenInstanceError()
-        if not self.id_context.contains(new_node.uid):
-            self.id_context.register(new_node.uid, new_node)
-        elif not (new_node.is_compatible_with(self.id_context.fetch(new_node.uid))):
+        if not self.node_id_context.contains(new_node.uid):
+            self.node_id_context.register(new_node.uid, new_node)
+        elif not (new_node.is_compatible_with(self.node_id_context.fetch(new_node.uid))):
             raise RegistryKeyAlreadyExistsError()
+        if new_node.node_id_context is None:
+            new_node.node_id_context = self.node_id_context
         if isinstance(new_node,Task):
-            if not new_node.description.guid in self.tasks_by_UID:
-                self.tasks_by_UID[new_node.description.guid] = new_node
+            if not new_node.description.uid in self.tasks_by_UID:
+                self.tasks_by_UID[new_node.description.uid] = new_node
+            if new_node.task_description_id_context is None:
+                new_node.task_description_id_context = self.task_description_id_context
         if not new_node.uid in self.nodes_by_UID:
             self.nodes_by_UID[new_node.uid] = new_node
             self._add_node_recurse(new_node)
@@ -244,6 +271,21 @@ class Plan(FreezableObject):
 
     # @override
     def __deepcopy__(self, memo):
-        new_copy:Plan = Plan(id_context=self.id_context)
+        new_copy:Plan = Plan(node_id_context=self.node_id_context,task_description_id_context=self.task_description_id_context)
         self.set_matching_deep_copy(new_copy,memo)
         return new_copy
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['node_id_context_id'] = self.node_id_context.uid
+        del state['node_id_context']
+        state['task_description_id_context_id'] = self.task_description_id_context.uid
+        del state['task_description_id_context']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.node_id_context = id_registry_registry.fetch(state['node_id_context_id'])
+        del self.__dict__['node_id_context_id']
+        self.task_description_id_context = id_registry_registry.fetch(state['task_description_id_context_id'])
+        del self.__dict__['task_description_id_context_id']

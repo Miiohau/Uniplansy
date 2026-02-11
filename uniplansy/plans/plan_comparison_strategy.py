@@ -110,7 +110,7 @@ class PlanComparisonStrategy(metaclass=ABCMeta):
                 keys.append(-task.satisfied_percentage)
         # to guarantee a total ordering
         keys.append(task.description.human_understandable_string)
-        keys.append(task.description.guid)
+        keys.append(task.description.uid)
         # it actually should be totally ordered by this point but just to make extra sure.
         keys.append(id(task.description))
         keys.append(id(task))

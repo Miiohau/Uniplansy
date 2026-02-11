@@ -6,7 +6,7 @@ import copy
 from abc import ABCMeta
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TypeVar, Generic, Optional, List, Any
+from typing import TypeVar, Generic, Optional, List, Any, final
 
 from uniplansy.reasoners.considerations.core import ReasonerConsideration
 from uniplansy.reasoners.graph import ReasonerBuilder
@@ -185,6 +185,7 @@ class Reasoner(Generic[Reasoner_Update_Context_Type,World_Type],metaclass=ABCMet
         for curChild in active_sub_reasoners:
             self.run_child(curChild, world, update_context)
 
+    @final
     def update(self, world:World_Type, parent_update_context:Reasoner_Update_Context_Type) -> ReasonerState:
         update_context = copy.deepcopy(parent_update_context)
         try:

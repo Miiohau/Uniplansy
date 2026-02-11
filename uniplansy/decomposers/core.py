@@ -10,7 +10,7 @@ from immutabledict import immutabledict
 
 from uniplansy.plans.plan import Plan, PlanGraphNode, PlanDeltas
 from uniplansy.reasoners.graph import ReasonerTemplate
-from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError
+from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError, id_registry_registry
 
 
 @dataclass
@@ -29,6 +29,17 @@ class DecomposerNode(PlanGraphNode):
         self.set_matching_deep_copy(new_copy,memo)
         return new_copy
 
+    def __getstate__(self):
+        state = super().__getstate__()
+        state['node_decomposer_id'] = self.node_decomposer.uid
+        del state['node_decomposer']
+        return state
+
+    # TODO:see if we can find a way to connect unpickled DecomposerNodes to their old notes
+    def __setstate__(self,state):
+        super().__setstate__(state)
+        self.node_decomposer = decomposer_registry.fetch(state['node_decomposer_id'])
+        del self.__dict__['node_decomposer_id']
 
 class Decomposer(metaclass=ABCMeta):
 
@@ -68,4 +79,5 @@ class Decomposer(metaclass=ABCMeta):
         """convert the decomposed tasks to reasoner graph"""
         pass
 
-decomposer_registry:IDRegistry[Decomposer] = IDRegistry()
+decomposer_registry:IDRegistry[Decomposer] = IDRegistry(uid="__internal__.decomposer_registry")
+id_registry_registry.register(decomposer_registry.uid,decomposer_registry)
