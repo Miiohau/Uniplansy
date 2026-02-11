@@ -14,7 +14,7 @@ from uniplansy.util.guid_suppliers.wrappers.wrappers import UniqueInIDRegistryGU
 from uniplansy.util.id_registry import IDRegistry
 
 @dataclass
-class ReasonerBuilder(CustomCopyable,metaclass=ABCMeta):
+class ReasonerBuilder(metaclass=ABCMeta):
     """builds Reasoners. Note the name is slight misnomer this class can create more than one Reasoner, the build method merely returns the root Reasoner"""
 
 
@@ -26,7 +26,7 @@ class ReasonerBuilder(CustomCopyable,metaclass=ABCMeta):
 
 
 @dataclass
-class ReasonerBuilderBase(ReasonerBuilder,metaclass=ABCMeta):
+class ReasonerBuilderBase(ReasonerBuilder,CustomCopyable,metaclass=ABCMeta):
     sub_reasoner_uids: List[str] = field(default_factory=list)
     preferred_name: str = ""
     uid: Optional[str] = field(default=None, init=False)
@@ -59,6 +59,10 @@ class ReasonerBuilderBase(ReasonerBuilder,metaclass=ABCMeta):
             if isinstance(guid_supplier_to_use, UniqueInIDRegistryGUIDSupplierWrapper) and old_id_registry is not None:
                 guid_supplier_to_use.registry = old_id_registry
 
+    def __deepcopy__(self, memo):
+        new_copy:Self = type(self)()
+        self.set_matching_deep_copy(new_copy, memo)
+        return new_copy
 
 @dataclass
 class CommonReasonerBuilder(ReasonerBuilderBase):

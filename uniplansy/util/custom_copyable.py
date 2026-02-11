@@ -1,7 +1,8 @@
-from typing import Self
+from typing import Self, Protocol, runtime_checkable
 
 
-class CustomCopyable:
+@runtime_checkable
+class CustomCopyable(Protocol):
 
     def set_matching_deep_copy(self, other:Self, memo):
         pass

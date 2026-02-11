@@ -68,7 +68,7 @@ class Task(PlanGraphNode):
         self.task_description_id_context = other.task_description_id_context
 
     def __deepcopy__(self, memo):
-        new_copy = Task(uid=self.uid,description=self.description)
+        new_copy = type(self)(uid=self.uid, description=self.description)
         self.set_matching_deep_copy(new_copy, memo)
         return new_copy
 

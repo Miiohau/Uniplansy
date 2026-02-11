@@ -25,7 +25,7 @@ class DecomposerNode(PlanGraphNode):
 
     # @override
     def __deepcopy__(self, memo):
-        new_copy:DecomposerNode = DecomposerNode(uid=self.uid, node_decomposer=self.node_decomposer)
+        new_copy = type(self)(uid=self.uid, node_decomposer=self.node_decomposer)
         self.set_matching_deep_copy(new_copy,memo)
         return new_copy
 

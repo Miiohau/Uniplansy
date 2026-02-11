@@ -60,7 +60,7 @@ class PlanGraphNode(FreezableObject):
     # @override
     def __deepcopy__(self, memo):
         # TODO: figure out a way to do this in a type safe way
-        new_copy = PlanGraphNode(uid=self.uid)
+        new_copy = type(self)(uid=self.uid)
         self.set_matching_deep_copy(new_copy, memo)
         return new_copy
 
@@ -271,7 +271,7 @@ class Plan(FreezableObject):
 
     # @override
     def __deepcopy__(self, memo):
-        new_copy:Plan = Plan(node_id_context=self.node_id_context,task_description_id_context=self.task_description_id_context)
+        new_copy:Self = type(self)(node_id_context=self.node_id_context,task_description_id_context=self.task_description_id_context)
         self.set_matching_deep_copy(new_copy,memo)
         return new_copy
 
