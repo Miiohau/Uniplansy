@@ -10,6 +10,7 @@ from immutabledict import immutabledict
 
 from uniplansy.plans.plan import Plan, PlanGraphNode, PlanDeltas
 from uniplansy.reasoners.graph import ReasonerTemplate
+from uniplansy.util.has_uid import HasUID, HasRequiredUID
 from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError, id_registry_registry
 
 
@@ -41,7 +42,8 @@ class DecomposerNode(PlanGraphNode):
         self.node_decomposer = decomposer_registry.fetch(state['node_decomposer_id'])
         del self.__dict__['node_decomposer_id']
 
-class Decomposer(metaclass=ABCMeta):
+# TODO: add the concept of a planning context to applicable, estimate_deltas and decompose_tasks
+class Decomposer(HasRequiredUID,metaclass=ABCMeta):
 
 
     def __init__(self, uid:str, register_self:bool=True):
@@ -51,7 +53,7 @@ class Decomposer(metaclass=ABCMeta):
             try:
                 decomposer_registry.register(self.uid, self)
             except RegistryKeyAlreadyExistsError as e:
-                raise RegistryKeyAlreadyExistsError("A decomposer with this guid already exists!") from e
+                raise RegistryKeyAlreadyExistsError("A decomposer with this uid already exists!") from e
 
     @abstractmethod
     def applicable(self, plan:Plan) -> bool:
@@ -78,6 +80,22 @@ class Decomposer(metaclass=ABCMeta):
     def convert_to_reasoner_graph(self, node:DecomposerNode)->ReasonerTemplate:
         """convert the decomposed tasks to reasoner graph"""
         pass
+
+class Goal(Decomposer, metaclass=ABCMeta):
+    """Goals are special Decomposers that are only applicable to empty plans. There primary reason for existence to place top level/end goals in the plan"""
+
+    def __init__(self, uid:str, register_self:bool=True):
+        super().__init__(uid = uid, register_self = register_self)
+
+    def applicable(self, plan: Plan) -> bool:
+        if len(plan.nodes_by_UID) == 0:
+            return True
+        elif (len(plan.nodes_by_UID) == len(plan.tasks_by_UID)) and (len(plan.tasks_by_UID) == len(plan.leaf_tasks())):
+            # if the only nodes are tasks and all of those tasks are leaves then we assume no Decomposers other than Goals have run.
+            return True
+        else:
+            return False
+
 
 decomposer_registry:IDRegistry[Decomposer] = IDRegistry(uid="__internal__.decomposer_registry")
 id_registry_registry.register(decomposer_registry.uid,decomposer_registry)

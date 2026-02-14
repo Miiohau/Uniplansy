@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import TypeVar, Generic, Optional, Any
 
 from uniplansy.util.guid_suppliers.guid_supplier import GUIDSupplier, default_guid_supplier
+from uniplansy.util.has_uid import HasRequiredUID
 
 
 class RegistryKeyError(ValueError):
@@ -19,7 +20,7 @@ class RegistryKeyAlreadyExistsError(RegistryKeyError):
 Registered_Object = TypeVar('Registered_Object')
 
 @dataclass
-class IDRegistry(Generic[Registered_Object]):
+class IDRegistry(Generic[Registered_Object],HasRequiredUID):
     uid: str = field(default_factory=default_guid_supplier.create_guid)
     _registry:dict[str, Registered_Object] = field(default_factory=dict[str, Optional[Registered_Object]], init=False)
     guid_supplier:Optional[GUIDSupplier] = None
@@ -43,12 +44,16 @@ class IDRegistry(Generic[Registered_Object]):
 
     def retire_referred_object(self, uid:str):
         if uid not in self._registry:
-            raise RegistryKeyNotFoundError()
+            raise RegistryKeyNotFoundError("Can't retire an object that was never registered")
         self._registry[uid] = None
 
     def retire_self(self):
         for uid in self._registry:
             self._registry[uid] = None
+        try:
+            id_registry_registry.retire_referred_object(self.uid)
+        except RegistryKeyNotFoundError:
+            pass
 
 
 

@@ -6,15 +6,16 @@ import copy
 from abc import ABCMeta
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TypeVar, Generic, Optional, List, Any, final
+from typing import TypeVar, Generic, Optional, List, Any, final, Callable
 
 from uniplansy.reasoners.considerations.core import ReasonerConsideration
 from uniplansy.reasoners.graph import ReasonerBuilder
+from uniplansy.util.has_uid import HasRequiredUID
 from uniplansy.util.id_registry import IDRegistry
 
 #TODO: (after upgrading to python 3.12) Remove convert to new Type Parameter Syntax
-Reasoner_Update_Context_Type = TypeVar('Reasoner_Update_Context_Type')
-World_Type = TypeVar('World_Type')
+Reasoner_Update_Context_Type: TypeVar = TypeVar('Reasoner_Update_Context_Type')
+World_Type: TypeVar = TypeVar('World_Type')
 
 
 
@@ -59,7 +60,8 @@ class SubReasonerStruct(Generic[Reasoner_Update_Context_Type,World_Type]):
     last_update_state: ReasonerState = field(default=ReasonerState.Not_Started, init=False)
     enter_state: ReasonerState = field(default=ReasonerState.Not_Started, init=False)
 
-class Reasoner(Generic[Reasoner_Update_Context_Type,World_Type],metaclass=ABCMeta):
+# Todo: validate this against a set of requirements
+class Reasoner(Generic[Reasoner_Update_Context_Type,World_Type],HasRequiredUID,metaclass=ABCMeta):
 
 
     def __init__(self, uid:str, id_registry:IDRegistry[ReasonerBuilder], start_conditions:List[ReasonerConsideration]=None, run_conditions:List[ReasonerConsideration]=None):
@@ -260,7 +262,34 @@ class Reasoner(Generic[Reasoner_Update_Context_Type,World_Type],metaclass=ABCMet
             self.exit(update_context)
         return self.state
 
-class CommonReasoner(Reasoner[Reasoner_Update_Context_Type,World_Type]):
+class SimpleReasoner(Reasoner[Reasoner_Update_Context_Type,World_Type]):
+    def __init__(self, uid: str, id_registry: IDRegistry[ReasonerBuilder],
+                 start_conditions: List[ReasonerConsideration] = None,
+                 run_conditions: List[ReasonerConsideration] = None,
+                 sense_delegate: Optional[
+                     Callable[[World_Type, Reasoner_Update_Context_Type], Reasoner_Update_Context_Type]] = None,
+                 act_delegate: Optional[Callable[[World_Type, Reasoner_Update_Context_Type], bool]] = None,
+                 ):
+        super().__init__(uid=uid,id_registry=id_registry,start_conditions=start_conditions,run_conditions=run_conditions)
+        self.sense_delegate = sense_delegate
+        self.act_delegate = act_delegate
+
+    # @override
+    def sense(self, world: World_Type, update_context: Reasoner_Update_Context_Type) -> Reasoner_Update_Context_Type:
+        new_update_context:Reasoner_Update_Context_Type = super().sense(world, update_context)
+        if self.sense_delegate is not None:
+            new_update_context = self.sense_delegate(new_update_context, new_update_context)
+        return new_update_context
+
+    # @override
+    def act(self, world:World_Type, update_context:Reasoner_Update_Context_Type):
+        finalize:bool = True
+        if self.act_delegate is not None:
+            finalize = self.act_delegate(world, update_context)
+        if finalize:
+            super().act(world, update_context)
+
+class CommonConjunctionReasoner(Reasoner[Reasoner_Update_Context_Type,World_Type]):
 
     def __init__(self, uid: str,
                  id_registry: IDRegistry[ReasonerBuilder],
@@ -373,7 +402,7 @@ class CommonReasoner(Reasoner[Reasoner_Update_Context_Type,World_Type]):
             if self.short_circuiting and self.state.is_finalized_state:
                 break
 
-class PrioritySequenceReasoner(CommonReasoner[Reasoner_Update_Context_Type,World_Type]):
+class PrioritySequenceReasoner(CommonConjunctionReasoner[Reasoner_Update_Context_Type,World_Type]):
 
     def __init__(self, uid: str,
                  id_registry: IDRegistry[ReasonerBuilder],
@@ -409,7 +438,7 @@ class PrioritySequenceReasoner(CommonReasoner[Reasoner_Update_Context_Type,World
             if child_state is ReasonerState.Running:
                 break
 
-class SequenceReasoner(CommonReasoner[Reasoner_Update_Context_Type,World_Type]):
+class SequenceReasoner(CommonConjunctionReasoner[Reasoner_Update_Context_Type,World_Type]):
 
     def __init__(self, uid: str,
                  id_registry: IDRegistry[ReasonerBuilder],
@@ -431,7 +460,7 @@ class SequenceReasoner(CommonReasoner[Reasoner_Update_Context_Type,World_Type]):
         else:
             return []
 
-class ThreadableCommonReasoner(CommonReasoner[Reasoner_Update_Context_Type,World_Type]):
+class ThreadableCommonConjunctionReasoner(CommonConjunctionReasoner[Reasoner_Update_Context_Type,World_Type]):
 
     def __init__(self, uid: str, id_registry: IDRegistry[ReasonerBuilder], sub_reasoner_uids: Optional[List[str]],
                  short_circuiting: bool = True,
@@ -441,9 +470,15 @@ class ThreadableCommonReasoner(CommonReasoner[Reasoner_Update_Context_Type,World
                  default_finished_state: Optional[ReasonerState] =None,
                  start_conditions: List[ReasonerConsideration] = None,
                  run_conditions: List[ReasonerConsideration] = None):
-        super().__init__(uid=uid, id_registry=id_registry, sub_reasoner_uids=sub_reasoner_uids,
-                         start_conditions=start_conditions, run_conditions=run_conditions,
-                         short_circuiting=short_circuiting,all_semantics=all_semantics,any_semantics=any_semantics,default_finished_state =default_finished_state)
+        super().__init__(uid=uid,
+                         id_registry=id_registry,
+                         sub_reasoner_uids=sub_reasoner_uids,
+                         start_conditions=start_conditions,
+                         run_conditions=run_conditions,
+                         short_circuiting=short_circuiting,
+                         all_semantics=all_semantics,
+                         any_semantics=any_semantics,
+                         default_finished_state =default_finished_state,)
         self.multithreaded:bool = multithreaded
         if multithreaded:
             self.built_sub_reasoners:bool = False
@@ -471,7 +506,7 @@ class ThreadableCommonReasoner(CommonReasoner[Reasoner_Update_Context_Type,World
         else:
             return []
 
-class AnyReasoner(ThreadableCommonReasoner[Reasoner_Update_Context_Type,World_Type]):
+class AnyReasoner(ThreadableCommonConjunctionReasoner[Reasoner_Update_Context_Type,World_Type]):
     def __init__(self, uid: str, id_registry: IDRegistry[ReasonerBuilder], sub_reasoner_uids: Optional[List[str]],
                  short_circuiting: bool = True,
                  multithreaded=False,
@@ -482,7 +517,7 @@ class AnyReasoner(ThreadableCommonReasoner[Reasoner_Update_Context_Type,World_Ty
                          start_conditions=start_conditions, run_conditions=run_conditions,
                          short_circuiting=short_circuiting,multithreaded=multithreaded, all_semantics=False, any_semantics=True,default_finished_state=default_finished_state)
 
-class AllReasoner(ThreadableCommonReasoner[Reasoner_Update_Context_Type,World_Type]):
+class AllReasoner(ThreadableCommonConjunctionReasoner[Reasoner_Update_Context_Type,World_Type]):
     def __init__(self, uid: str, id_registry: IDRegistry[ReasonerBuilder], sub_reasoner_uids: Optional[List[str]],
                  short_circuiting: bool = True,
                  multithreaded=False,

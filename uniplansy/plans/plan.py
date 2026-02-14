@@ -12,11 +12,12 @@ from immutabledict import immutabledict
 from uniplansy.tasks.task_filter import TaskFilter
 from uniplansy.tasks.tasks import Task, TaskDescription
 from uniplansy.util.FreezableObject import FreezableObject
+from uniplansy.util.has_uid import HasUID, HasOptionalUID, HasRequiredUID
 from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError, id_registry_registry
 
 
 @dataclass
-class PlanGraphNode(FreezableObject):
+class PlanGraphNode(FreezableObject,HasRequiredUID):
     uid:str
     node_id_context: Optional[IDRegistry[PlanGraphNode]] = field(default=None, init=False)
     children:set[PlanGraphNode] = field(default_factory=set, kw_only=True, compare=False)
@@ -86,10 +87,12 @@ class PlanDeltas:
     leaf_tasks_delta: Optional[int] = None
     satisfied_percentage_deltas: immutabledict[str, float] = immutabledict({})
 
+# TODO: add the concept of constraints that have to remain true for the Plan to remain valid
 @dataclass(init=True,repr=True,eq=True)
-class Plan(FreezableObject):
+class Plan(FreezableObject,HasOptionalUID):
     node_id_context:IDRegistry[PlanGraphNode]
     task_description_id_context: IDRegistry[TaskDescription]
+    uid: Optional[str] = None
     tasks_by_UID:dict[str,Task] = field(default_factory=dict, init=False)
     nodes_by_UID:dict[str,PlanGraphNode] = field(default_factory=dict, init=False)
     _cashed_total_motivation:Optional[float] = field(default=None, init=False, compare=False)

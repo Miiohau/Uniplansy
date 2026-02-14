@@ -33,6 +33,7 @@ class FreezableObject(CustomCopyable):
     # noinspection PyUnusedLocal
     # @override
     def set_matching_deep_copy(self,other:Self,memo):
+        super().set_matching_deep_copy(other, memo)
         other.frozen = self.frozen
 
 

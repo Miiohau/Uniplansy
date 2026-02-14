@@ -5,11 +5,12 @@ from typing import Any, Self, Optional
 from immutabledict import immutabledict
 
 from uniplansy.plans.plan import PlanGraphNode
+from uniplansy.util.has_uid import HasRequiredUID
 from uniplansy.util.id_registry import IDRegistry, id_registry_registry
 
 
 @dataclass(frozen=True, repr=True)
-class TaskDescription:
+class TaskDescription(HasRequiredUID):
     uid:str
     human_understandable_string:str
     context:immutabledict[str, Any] = immutabledict({})
