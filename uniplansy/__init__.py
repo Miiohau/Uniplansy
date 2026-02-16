@@ -1,5 +1,11 @@
-"""
-the root package. Mainly it exists to namespace the other packages
+"""the root package. Mainly it exists to namespace the other packages
+
+util (package): holds all the classes that aren't tied directly to planning but are used internally by uniplansy.
+tasks (package): TODO: fill out
+reasoner (package): TODO: fill out
+plans (package): TODO: fill out
+planner (package): the core package dealing with the classes and Strategies needed to run the planning algorithm
+decomposers (package): TODO: fill out
 """
 #how to do optional dependencies notes
 #to select between modules or only expose a module if optional dependency is installed

@@ -1,6 +1,4 @@
-"""
-a FreezableObject is an object that can be frozen and unfrozen.
-"""
+"""a FreezableObject is an object that can be frozen and unfrozen."""
 #TODO: (after upgrading to python 3.12) uncomment @override Decorators
 import copy
 from dataclasses import FrozenInstanceError
@@ -10,11 +8,15 @@ from uniplansy.util.custom_copyable import CustomCopyable
 
 
 class FreezableObject(CustomCopyable):
-    """
-    an object that can be frozen and unfrozen.
+    """an object that can be frozen and unfrozen.
 
     This class itself follows the definition of frozen defined by dataclasses as of 2026 January 24.
     However, subclasses are free to add additional semantics to the freeze and unfreeze operations.
+    :method freeze: freeze the object. Meaning it is protected from modification.
+    :method unfreeze: unfreeze the object. Meaning it is no longer protected from modification.
+    :method thaw: alias for unfreeze. Subclasses should override that method,
+    if they need to change the unfreeze behavior.
+    :method deep_copy_and_unfreeze: copy and unfreeze the copy of the object.
     """
 
     def __init__(self):

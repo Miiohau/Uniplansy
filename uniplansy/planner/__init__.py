@@ -1,5 +1,5 @@
 """
-the core package dealing with the classes and Strategy needed to run the planning algorithm
+the core package dealing with the classes and Strategies needed to run the planning algorithm
 """
 # general workflow
 # 1. load and initialize decomposers

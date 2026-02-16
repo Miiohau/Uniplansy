@@ -1,4 +1,9 @@
-"""defines the HasUID Protocol and its subclasses"""
+"""defines the HasUID Protocol and its subclasses
+
+HasUID(Protocol): a data protocol for having a UID
+HasOptionalUID(Protocol): a data protocol for having an optional uid
+HasRequiredUID(Protocol): a data protocol for having a required uid
+"""
 from typing import Protocol, runtime_checkable, Optional, Self
 
 from uniplansy.util.custom_copyable import CustomCopyable
@@ -10,7 +15,7 @@ class HasUID(Protocol):
     uid: str | Optional[str]
 
 
-class HasOptionalUID(HasUID, CustomCopyable):
+class HasOptionalUID(Protocol,HasUID, CustomCopyable):
     """a data protocol for having an optional uid"""
     uid: Optional[str] = None
 
@@ -18,6 +23,6 @@ class HasOptionalUID(HasUID, CustomCopyable):
         super().set_matching_deep_copy(other, memo)
         other.uid = None
 
-class HasRequiredUID(HasUID):
+class HasRequiredUID(Protocol,HasUID):
     """a data protocol for having a required uid"""
     uid: str

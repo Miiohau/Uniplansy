@@ -1,5 +1,10 @@
-"""
-defines IDRegistry supporting errors and globals
+"""defines IDRegistry and supporting errors and globals
+
+IDRegistry(Class): a registry of objects with unique ID
+RegistryKeyError(Error): an error raised when there is a problem with a key used in an IDRegistry
+RegistryKeyNotFoundError(Error): an error raised when a key is not found in an IDRegistry
+RegistryKeyAlreadyExistsError(Error): an error raised when a key already exists in an IDRegistry
+id_registry_registry(global): the global registry of IDIDRegistries
 """
 from dataclasses import dataclass, field
 from typing import TypeVar, Generic, Optional, Any
@@ -31,7 +36,14 @@ Registered_Object = TypeVar('Registered_Object')
 
 @dataclass
 class IDRegistry(Generic[Registered_Object],HasRequiredUID):
-    """a registry of objects with unique IDs"""
+    """a registry of objects with unique IDs.
+
+    :method register: registers an object under a unique ID
+    :method fetch: fetch an object from the registry
+    :method retire_referred_object: retires an object from the registry
+    :method retire_self: retires this registry and all contained objects
+    :method contains: checks whether uid is in registry
+    """
     uid: str = field(default_factory=default_guid_supplier.create_guid)
     _registry:dict[str, Registered_Object] = field(default_factory=dict[str, Optional[Registered_Object]], init=False)
     guid_supplier:Optional[GUIDSupplier] = None
@@ -40,48 +52,46 @@ class IDRegistry(Generic[Registered_Object],HasRequiredUID):
         return self is other
 
     def register(self, uid: str, item: Registered_Object):
-        """
-        register an object under a unique ID
+        """register an object under a unique ID
         :param uid: the unique ID to register the object under
         :param item: the object to be registered
+        :throws RegistryKeyNotFoundError: if uid is already registered
         """
         if (uid in self._registry) and (not (item is self._registry[uid])):
             raise RegistryKeyAlreadyExistsError()
         self._registry[uid] = item
 
     def contains(self, uid: str) -> bool:
-        """
-        check whether uid is in registry
+        """check whether uid is in registry
         :param uid: the unique ID to check
         :return: whether uid is in registry
         """
         return uid in self._registry
 
     def fetch(self, uid:str) -> Optional[Registered_Object]:
-        """
-        fetch an object from registry.
+        """fetch an object from the registry.
 
         may be None if the object has been retired.
         :param uid: the ID of the object to be fetched
         :return: the object if the id isn't retired, otherwise None
+        :throws RegistryKeyNotFoundError: if uid is not registered
         """
         if uid not in self._registry:
             raise RegistryKeyNotFoundError()
         return self._registry[uid]
 
     def retire_referred_object(self, uid:str):
-        """
-        retires an object from the registry.
+        """retires an object from the registry.
+
         :param uid: the ID of the object to be retired
+        :throws RegistryKeyNotFoundError: if uid is not registered
         """
         if uid not in self._registry:
             raise RegistryKeyNotFoundError("Can't retire an object that was never registered")
         self._registry[uid] = None
 
     def retire_self(self):
-        """
-        retires this registry and all contained objects
-        """
+        """retires this registry and all contained objects"""
         for uid in self._registry:
             self._registry[uid] = None
         try:
