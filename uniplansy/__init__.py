@@ -1,3 +1,6 @@
+"""
+the root package. Mainly it exists to namespace the other packages
+"""
 #how to do optional dependencies notes
 #to select between modules or only expose a module if optional dependency is installed
 #try:

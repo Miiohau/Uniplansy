@@ -1,3 +1,6 @@
+"""
+a FreezableObject is an object that can be frozen and unfrozen.
+"""
 #TODO: (after upgrading to python 3.12) uncomment @override Decorators
 import copy
 from dataclasses import FrozenInstanceError
@@ -7,10 +10,15 @@ from uniplansy.util.custom_copyable import CustomCopyable
 
 
 class FreezableObject(CustomCopyable):
-    """an object that can be frozen and unfrozen. This class itself follows definition of frozen defined by dataclasses as of 2026 January 24. However, subclasses are free to add additional semantics to the freeze and unfreeze operations."""
+    """
+    an object that can be frozen and unfrozen.
+
+    This class itself follows the definition of frozen defined by dataclasses as of 2026 January 24.
+    However, subclasses are free to add additional semantics to the freeze and unfreeze operations.
+    """
 
     def __init__(self):
-        self.frozen:bool = False
+        self.frozen: bool = False
 
     def freeze(self):
         """freeze the object. Meaning it is protected from modification"""
@@ -25,7 +33,12 @@ class FreezableObject(CustomCopyable):
         self.unfreeze()
 
     def deep_copy_and_unfreeze(self):
-        """deep copy and unfreezes the copy of the FreezableObject. Should always be safe because a deep copy of a FreezableObject should be completely independent of the original object"""
+        """
+        deep copy and unfreezes the copy of the FreezableObject.
+
+        Should always be safe because a deep copy of a FreezableObject should be completely independent of
+        the original object
+        """
         new_copy = copy.deepcopy(self)
         new_copy.unfreeze()
         return new_copy
@@ -36,17 +49,23 @@ class FreezableObject(CustomCopyable):
         super().set_matching_deep_copy(other, memo)
         other.frozen = self.frozen
 
-
     # @override
     def __setattr__(self, name, value):
-        """FreezableObject raise a FrozenInstanceError if they are modified while frozen"""
+        """
+        FreezableObject raise a FrozenInstanceError if they are modified while frozen
+        :param name: The name of the attribute.
+        :param value: The value of the attribute.
+        """
         if self.frozen:
             raise FrozenInstanceError()
         super().__setattr__(name, value)
 
     # @override
     def __delattr__(self, name):
-        """FreezableObject raise a FrozenInstanceError if they are modified while frozen"""
+        """
+        FreezableObject raise a FrozenInstanceError if they are modified while frozen
+        :param name: The name of the attribute.
+        """
         if self.frozen:
             raise FrozenInstanceError()
         super().__delattr__(name)

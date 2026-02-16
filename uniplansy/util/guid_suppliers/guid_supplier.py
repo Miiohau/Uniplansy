@@ -6,8 +6,11 @@ from uniplansy.util.guid_suppliers.thread_local.thread_local_guid_supplier impor
 class GUIDSupplier(metaclass=ABCMeta):
 
     @abstractmethod
-    def create_guid(self,prefix: str ="") -> str:
-        """creates a unique guid. The prefix is recommended to give context in case the guid shows up somewhere."""
+    def create_guid(self, prefix: str = "") -> str:
+        """
+        creates a unique guid. The prefix is recommended to give context in case the guid shows up somewhere.
+        :param prefix: the prefix to give the guid
+        """
         pass
 
 
