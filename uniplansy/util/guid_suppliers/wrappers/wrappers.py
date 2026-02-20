@@ -9,7 +9,7 @@ class UniqueInIDRegistryGUIDSupplierWrapper(GUIDSupplier):
         self.delegate = delegate
 
     def create_guid(self, prefix: str = "") -> str:
-        possible_guid:str
+        possible_guid: str
         while True:
             possible_guid = self.delegate.create_guid(prefix)
             if not self.registry.contains(possible_guid):

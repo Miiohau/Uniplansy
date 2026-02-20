@@ -1,3 +1,6 @@
+"""a ThreadLocalGuidSupplier is a GuidSupplier that uses a thread-local sequence number and
+thread_ids to create unique guids.
+"""
 import threading
 from threading import local
 
@@ -5,13 +8,17 @@ from uniplansy.util.guid_suppliers.guid_supplier import GUIDSupplier
 
 _module_thread_local_data = local()
 
+"""the thread global counter"""
 _module_thread_local_data.sequence = 0
 
 class ThreadLocalGuidSupplier(GUIDSupplier):
     """a GuidSupplier that uses a thread-local sequence number and thread_ids to create unique guids.
 
     Note:this GuidSupplier simple on purpose to run fast however because of that is unsuitable for long-running
-    applications because it will generate increasing large guids."""
+    applications because it will generate increasing large guids.
+    create_thread_guid (method): creates a globally unique id for use as a name of a thread.
+    create_guid (method): creates a guid in the context of the current thread.
+    """
     _thread_sequence: int = 0
     _thread_sequence_lock = threading.Lock()
 
