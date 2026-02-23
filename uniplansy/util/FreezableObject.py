@@ -2,7 +2,7 @@
 #TODO: (after upgrading to python 3.12) uncomment @override Decorators
 import copy
 from dataclasses import FrozenInstanceError
-from typing import Self
+from typing import Self, Optional
 
 from uniplansy.util.custom_copyable import CustomCopyable
 
@@ -19,8 +19,10 @@ class FreezableObject(CustomCopyable):
     :method deep_copy_and_unfreeze: copy and unfreeze the copy of the object.
     """
 
-    def __init__(self):
+    def __init__(self, cache_prefix: str = "_cache"):
         self.frozen: bool = False
+        self._cache_prefix = cache_prefix
+        self._temporarily_unfrozen_attribute:Optional[str] = None
 
     def freeze(self):
         """freeze the object. Meaning it is protected from modification"""
@@ -29,6 +31,14 @@ class FreezableObject(CustomCopyable):
     def unfreeze(self):
         """unfreeze the object. Meaning it is no longer protected from modification"""
         self.frozen = False
+
+    def temporary_selective_unfreeze(self, name: str):
+        """temporarily unfreezes one attribute of the FreezableObject.
+
+        Only one attribute can be temporarily unfreezed this way
+        :param name: the name of the attribute to unfreeze.
+        """
+        self._temporarily_unfrozen_attribute = name
 
     def thaw(self):
         """alias for unfreeze. Subclasses should override that method, if they need to change the unfreeze behavior."""
@@ -55,19 +65,31 @@ class FreezableObject(CustomCopyable):
     def __setattr__(self, name, value):
         """
         FreezableObject raise a FrozenInstanceError if they are modified while frozen
+
+        exception: attributes starting with cache_prefix can be modified
         :param name: The name of the attribute.
         :param value: The value of the attribute.
+        :raises FrozenInstanceError: if they are modified while frozen
         """
-        if self.frozen:
+        if (self.frozen and not name.startswith(self._cache_prefix)
+                and not (name == self._temporarily_unfrozen_attribute)):
             raise FrozenInstanceError()
         super().__setattr__(name, value)
+        if name == self._temporarily_unfrozen_attribute:
+            self._temporarily_unfrozen_attribute = None
 
     # @override
     def __delattr__(self, name):
         """
         FreezableObject raise a FrozenInstanceError if they are modified while frozen
+
+        exception: attributes starting with cache_prefix can be modified
         :param name: The name of the attribute.
+        :raises FrozenInstanceError: if they are modified while frozen
         """
-        if self.frozen:
+        if (self.frozen and not name.startswith(self._cache_prefix)
+                and not (name == self._temporarily_unfrozen_attribute)):
             raise FrozenInstanceError()
         super().__delattr__(name)
+        if name == self._temporarily_unfrozen_attribute:
+            self._temporarily_unfrozen_attribute = None

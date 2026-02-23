@@ -3,7 +3,7 @@
 Some may be spun off into their own packages and become dependencies of uniplansy.
 CustomCopyable(Interface): a custom copyable is a Protocol to support implementation of __copy__ and __deepcopy__
 (mainly __deepcopy__)
-guid_suppliers(package): TODO: fill out
+uid_suppliers(package): TODO: fill out
 persistence: TODO: fill out
 FreezableObject(Class) an object that can be frozen and unfrozen.
 HasPreferredName(Protocol): a data protocol for having a preferred name

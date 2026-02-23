@@ -3,7 +3,7 @@ import threading
 import uuid
 from typing import Optional
 
-from uniplansy.util.guid_suppliers.guid_supplier import GUIDSupplier
+from uniplansy.util.uid_suppliers.uid_supplier import GUIDSupplier
 
 
 class UUID1GUIDSupplier(GUIDSupplier):

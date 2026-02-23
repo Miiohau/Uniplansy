@@ -9,7 +9,7 @@ id_registry_registry(global): the global registry of IDIDRegistries
 from dataclasses import dataclass, field
 from typing import TypeVar, Generic, Optional, Any
 
-from uniplansy.util.guid_suppliers.guid_supplier import GUIDSupplier, default_guid_supplier
+from uniplansy.util.uid_suppliers.uid_supplier import GUIDSupplier, default_guid_supplier
 from uniplansy.util.has_uid import HasRequiredUID
 
 

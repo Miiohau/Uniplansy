@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import statistics
 from dataclasses import dataclass, field, FrozenInstanceError
-from typing import Optional, List, Self
+from typing import Optional, List, Self, Any, TypeAlias
 
 from immutabledict import immutabledict
 
@@ -17,10 +17,10 @@ from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError
 
 
 @dataclass
-class PlanGraphNode(FreezableObject,HasRequiredUID):
-    uid:str
+class PlanGraphNode(FreezableObject, HasRequiredUID):
+    uid: str
     node_id_context: Optional[IDRegistry[PlanGraphNode]] = field(default=None, init=False)
-    children:set[PlanGraphNode] = field(default_factory=set, kw_only=True, compare=False)
+    children: set[PlanGraphNode] = field(default_factory=set, kw_only=True, compare=False)
     parents: set[PlanGraphNode] = field(default_factory=set, kw_only=True, compare=False)
     frozen_children:Optional[frozenset[PlanGraphNode]] = field(default=None, init=False, compare=False)
     frozen_parents:Optional[frozenset[PlanGraphNode]] = field(default=None, init=False, compare=False)
@@ -48,7 +48,7 @@ class PlanGraphNode(FreezableObject,HasRequiredUID):
 
     def is_compatible_with(self,other:PlanGraphNode) -> bool:
         """return true if PlanGraphNode is compatible with other"""
-        return self == other
+        return self.could_be_equal(other)
 
     def set_matching_deep_copy(self,other:Self,memo):
         super().set_matching_deep_copy(other,memo)
@@ -76,6 +76,88 @@ class PlanGraphNode(FreezableObject,HasRequiredUID):
         self.node_id_context = id_registry_registry.fetch(state['node_id_context_id'])
         del self.__dict__['node_id_context_id']
 
+    # possible algorithms
+    # vf2 algorithm
+    # Weisfeiler Leman graph isomorphism test
+    def _are_children_equal(self, other, memo: dict[str,Any]) -> bool:
+        are_equal: bool = True
+        for cur_self_child in self.children:
+            possible_matches: set[str] = set()
+            for cur_other_child in other.children:
+                if cur_self_child.could_be_equal(cur_other_child):
+                    possible_matches.add(cur_other_child.uid)
+            orig_possible_matches: Optional[set[str]] = memo["possible mappings"][cur_self_child.uid]
+            if orig_possible_matches is not None:
+                possible_matches = possible_matches.intersection(orig_possible_matches)
+            memo["possible mappings"][cur_self_child.uid] = possible_matches
+            if len(possible_matches) == 0:
+                are_equal = False
+                break
+            found_match: bool = False
+            if cur_self_child.uid in memo["visited nodes"]:
+                found_match = True
+            else:
+                for cur_other_child in other.children:
+                    if cur_other_child in possible_matches:
+                        if cur_self_child.are_equal(cur_other_child, memo):
+                            found_match = True
+                            break
+            if not found_match:
+                are_equal = False
+                break
+        return are_equal
+
+    def _are_parents_equal(self, other, memo: dict[str,Any]) -> bool:
+        are_equal: bool = True
+        for cur_self_parent in self.parents:
+            if cur_self_parent.uid in memo["visited nodes"]:
+                found_match: bool = False
+                for cur_other_parent in other.parents:
+                    if cur_self_parent.could_be_equal(cur_other_parent):
+                        found_match = True
+                        break
+                if not found_match:
+                    are_equal = False
+                    break
+            else:
+                found_match: bool = False
+                for cur_other_parent in other.parents:
+                    if cur_self_parent.are_equal(cur_other_parent, memo):
+                        found_match = True
+                        break
+                if not found_match:
+                    are_equal = False
+                    break
+        return are_equal
+
+    def could_be_equal(self, other) -> bool:
+        if not isinstance(other, type(self)):
+            return False
+        #uids aren't compared here because matching uids on PlanGraphNodes imply compatibility not equality
+        #conversely two nodes could be equal even if their uids don't match
+        if self.node_id_context_id != other.node_id_context_id:
+            return False
+        return True
+
+    def are_equal(self, other, memo: dict[str,Any]) -> bool:
+        if not self.could_be_equal(other):
+            return False
+        if not "visited nodes" in memo:
+            memo["visited nodes"] = set()
+        if not "possible mappings" in memo:
+            memo["possible mappings"] = dict[str, set[str]]()
+        memo["visited nodes"].add(self.uid)
+        if not self._are_children_equal(other, memo):
+            return False
+        if not self._are_parents_equal(other, memo):
+            return False
+        return True
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, type(self)):
+            return False
+        return self.are_equal(other, dict())
+
 
 @dataclass(frozen=True)
 class PlanDeltas:
@@ -88,112 +170,127 @@ class PlanDeltas:
     satisfied_percentage_deltas: immutabledict[str, float] = immutabledict({})
 
 # TODO: add the concept of constraints that have to remain true for the Plan to remain valid
-@dataclass(init=True,repr=True,eq=True)
+@dataclass(init=True,repr=True)
 class Plan(FreezableObject,HasOptionalUID):
     node_id_context:IDRegistry[PlanGraphNode]
     task_description_id_context: IDRegistry[TaskDescription]
     uid: Optional[str] = None
     tasks_by_UID:dict[str,Task] = field(default_factory=dict, init=False)
     nodes_by_UID:dict[str,PlanGraphNode] = field(default_factory=dict, init=False)
-    _cashed_total_motivation:Optional[float] = field(default=None, init=False, compare=False)
-    _cashed_min_cost:Optional[float] = field(default=None, init=False, compare=False)
-    _cashed_max_cost:Optional[float] = field(default=None, init=False, compare=False)
-    _cashed_average_satisfied_percentage:Optional[float] = field(default=None, init=False, compare=False)
-    _cashed_median_satisfied_percentage:Optional[float] = field(default=None, init=False, compare=False)
-    _cashed_estimated_cost:Optional[float] = field(default=None, init=False, compare=False)
-    _cashed_unsatisfied_tasks:Optional[list[Task]] = field(default=None, init=False, compare=False)
-    _cashed_leaf_tasks:Optional[list[Task]] = field(default=None, init=False, compare=False)
+    _cached_total_motivation:Optional[float] = field(default=None, init=False, compare=False)
+    _cached_min_cost:Optional[float] = field(default=None, init=False, compare=False)
+    _cached_max_cost:Optional[float] = field(default=None, init=False, compare=False)
+    _cached_average_satisfied_percentage:Optional[float] = field(default=None, init=False, compare=False)
+    _cached_median_satisfied_percentage:Optional[float] = field(default=None, init=False, compare=False)
+    _cached_estimated_cost:Optional[float] = field(default=None, init=False, compare=False)
+    _cached_unsatisfied_tasks:Optional[list[Task]] = field(default=None, init=False, compare=False)
+    _cached_leaf_tasks:Optional[list[Task]] = field(default=None, init=False, compare=False)
+
+    def valid(self):
+        #TODO:implement
+        pass
 
     def total_motivation(self) -> float:
         """return the total motivation of the plan"""
-        if self.frozen and (self._cashed_total_motivation is not None):
-            return self._cashed_total_motivation
+        if self.frozen and (self._cached_total_motivation is not None):
+            return self._cached_total_motivation
         total:float = 0
         for cur_task in self.tasks_by_UID.values():
             total += (cur_task.motivation * (1-cur_task.get_clamped_satisfied_percentage(0,1)))
         if self.frozen:
-            self._cashed_total_motivation = total
+            self._cached_total_motivation = total
         return total
 
     def min_cost(self)  -> float:
         """return the minimum cost of the plan"""
-        if self.frozen and (self._cashed_min_cost is not None):
-            return self._cashed_min_cost
+        if self.frozen and (self._cached_min_cost is not None):
+            return self._cached_min_cost
         total: float = 0
         for cur_task in self.tasks_by_UID.values():
             total += (cur_task.min_cost * (1 - cur_task.get_clamped_satisfied_percentage(0, 1)))
         if self.frozen:
-            self._cashed_min_cost = total
+            self._cached_min_cost = total
         return total
 
     def estimated_cost(self) -> float:
         """return the estimated cost of the plan"""
-        if self.frozen and (self._cashed_estimated_cost is not None):
-            return self._cashed_estimated_cost
+        if self.frozen and (self._cached_estimated_cost is not None):
+            return self._cached_estimated_cost
         total: float = 0
         for cur_task in self.tasks_by_UID.values():
             total += (cur_task.estimated_cost * (1 - cur_task.get_clamped_satisfied_percentage(0, 1)))
         if self.frozen:
-            self._cashed_estimated_cost = total
+            self._cached_estimated_cost = total
         return total
 
     def max_cost(self) -> float:
         """return the maximum cost of the plan"""
-        if self.frozen and (self._cashed_max_cost is not None):
-            return self._cashed_max_cost
+        if self.frozen and (self._cached_max_cost is not None):
+            return self._cached_max_cost
         total: float = 0
         for cur_task in self.tasks_by_UID.values():
             total += (cur_task.estimated_cost * (1 - cur_task.get_clamped_satisfied_percentage(0, 1)))
         if self.frozen:
-            self._cashed_max_cost = total
+            self._cached_max_cost = total
         return total
 
-    def average_satisfied_percentage(self) -> float:
-        """return the average satisfied percentage of the tasks in the plan"""
-        if self.frozen and (self._cashed_average_satisfied_percentage is not None):
-            return self._cashed_average_satisfied_percentage
+    def average_satisfied_percentage(self, deltas: Optional[PlanDeltas] = None) -> float:
+        """return the average satisfied percentage of the tasks in the plan
+
+        :param deltas: TODO:Finish doc"""
+        if self.frozen and (self._cached_average_satisfied_percentage is not None) and deltas is None:
+            return self._cached_average_satisfied_percentage
         total: float = 0
         for cur_task in self.tasks_by_UID.values():
-            total += cur_task.satisfied_percentage
+            if deltas is None:
+                total += cur_task.satisfied_percentage
+            else:
+                total += cur_task.satisfied_percentage + deltas.satisfied_percentage_deltas[cur_task.uid]
         r_value: float = total / len(self.tasks_by_UID)
-        if self.frozen:
-            self._cashed_average_satisfied_percentage = r_value
+        if self.frozen and deltas is None:
+            self._cached_average_satisfied_percentage = r_value
         return r_value
 
-    def median_satisfied_percentage(self) -> float:
-        """return the median satisfied percentage of the plan"""
-        if self.frozen and (self._cashed_median_satisfied_percentage is not None):
-            return self._cashed_median_satisfied_percentage
+    def median_satisfied_percentage(self, deltas: Optional[PlanDeltas] = None) -> float:
+        """return the median satisfied percentage of the plan
+
+        :param deltas: TODO:Finish doc"""
+        if self.frozen and (self._cached_median_satisfied_percentage is not None) and deltas is None:
+            return self._cached_median_satisfied_percentage
         satisfied_percentage_values: list[float] = []
         for cur_task in self.tasks_by_UID.values():
-            satisfied_percentage_values.append(cur_task.satisfied_percentage)
+            if deltas is None:
+                satisfied_percentage_values.append(cur_task.satisfied_percentage)
+            else:
+                satisfied_percentage_values.append(cur_task.satisfied_percentage +
+                                                   deltas.satisfied_percentage_deltas[cur_task.uid])
         r_value: float = statistics.median(satisfied_percentage_values)
-        if self.frozen:
-            self._cashed_median_satisfied_percentage = r_value
+        if self.frozen and deltas is None:
+            self._cached_median_satisfied_percentage = r_value
         return r_value
 
     def unsatisfied_tasks(self) -> List[Task]:
         """return the unsatisfied tasks"""
-        if self.frozen and (self._cashed_unsatisfied_tasks is not None):
-            return self._cashed_unsatisfied_tasks
+        if self.frozen and (self._cached_unsatisfied_tasks is not None):
+            return self._cached_unsatisfied_tasks
         r_values: list[Task] = []
         for cur_task in self.tasks_by_UID.values():
             if cur_task.satisfied_percentage <= 1:
                 r_values.append(cur_task)
         if self.frozen:
-            self._cashed_unsatisfied_tasks = r_values
+            self._cached_unsatisfied_tasks = r_values
         return r_values
 
     def leaf_tasks(self) -> List[Task]:
         """return the leaf tasks"""
-        if self.frozen and (self._cashed_leaf_tasks is not None):
-            return self._cashed_leaf_tasks
+        if self.frozen and (self._cached_leaf_tasks is not None):
+            return self._cached_leaf_tasks
         r_values: list[Task] = []
         for cur_task in self.tasks_by_UID.values():
             if len(cur_task.children) == 0:
                 r_values.append(cur_task)
         if self.frozen:
-            self._cashed_leaf_tasks = r_values
+            self._cached_leaf_tasks = r_values
         return r_values
 
     def filter_tasks(self, task_filter : TaskFilter) -> List[Task]:
@@ -250,27 +347,27 @@ class Plan(FreezableObject,HasOptionalUID):
             node.unfreeze()
         for node in self.tasks_by_UID.values():
             node.unfreeze()
-        self._cashed_leaf_tasks = None
-        self._cashed_unsatisfied_tasks = None
-        self._cashed_max_cost = None
-        self._cashed_min_cost = None
-        self._cashed_estimated_cost = None
-        self._cashed_total_motivation = None
-        self._cashed_average_satisfied_percentage = None
-        self._cashed_median_satisfied_percentage = None
+        self._cached_leaf_tasks = None
+        self._cached_unsatisfied_tasks = None
+        self._cached_max_cost = None
+        self._cached_min_cost = None
+        self._cached_estimated_cost = None
+        self._cached_total_motivation = None
+        self._cached_average_satisfied_percentage = None
+        self._cached_median_satisfied_percentage = None
 
     def set_matching_deep_copy(self,other:Self,memo):
         super().set_matching_deep_copy(other,memo)
         other.nodes_by_UID = copy.deepcopy(self.nodes_by_UID, memo)
         other.tasks_by_UID = copy.deepcopy(self.tasks_by_UID, memo)
-        other._cashed_leaf_tasks = copy.deepcopy(self._cashed_leaf_tasks, memo)
-        other._cashed_unsatisfied_tasks = copy.deepcopy(self._cashed_unsatisfied_tasks, memo)
-        other._cashed_max_cost = self._cashed_max_cost
-        other._cashed_min_cost = self._cashed_min_cost
-        other._cashed_estimated_cost = self._cashed_estimated_cost
-        other._cashed_total_motivation = self._cashed_total_motivation
-        other._cashed_average_satisfied_percentage = self._cashed_average_satisfied_percentage
-        other._cashed_median_satisfied_percentage = self._cashed_median_satisfied_percentage
+        other._cached_leaf_tasks = copy.deepcopy(self._cached_leaf_tasks, memo)
+        other._cached_unsatisfied_tasks = copy.deepcopy(self._cached_unsatisfied_tasks, memo)
+        other._cached_max_cost = self._cached_max_cost
+        other._cached_min_cost = self._cached_min_cost
+        other._cached_estimated_cost = self._cached_estimated_cost
+        other._cached_total_motivation = self._cached_total_motivation
+        other._cached_average_satisfied_percentage = self._cached_average_satisfied_percentage
+        other._cached_median_satisfied_percentage = self._cached_median_satisfied_percentage
 
     # @override
     def __deepcopy__(self, memo):
@@ -292,3 +389,61 @@ class Plan(FreezableObject,HasOptionalUID):
         del self.__dict__['node_id_context_id']
         self.task_description_id_context = id_registry_registry.fetch(state['task_description_id_context_id'])
         del self.__dict__['task_description_id_context_id']
+
+    def __eq__(self, other) -> bool:
+        # note: comparing two plans for equality is isomorphic to Graph isomorphism problem
+        # TODO: detect if the plan is a tree and use a tree comparison algorithm if so
+        if self is other:
+            return True
+        if not isinstance(other, type(self)):
+            return False
+        if self.uid == other.uid:
+            return True
+        if ((self.node_id_context != other.node_id_context) or
+                (self.task_description_id_context != other.task_description_id_context)):
+            return False
+        if ((self._cached_max_cost is not None) and (other._cached_max_cost is not None) and
+                (self._cached_max_cost != other._cached_max_cost)):
+            return False
+        if ((self._cached_total_motivation is not None) and (other._cached_total_motivation is not None) and
+                (self._cached_total_motivation != other._cached_total_motivation)):
+            return False
+        if ((self._cached_min_cost is not None) and (other._cached_min_cost is not None) and
+                (self._cached_min_cost != other._cached_min_cost)):
+            return False
+        if ((self._cached_estimated_cost is not None) and (other._cached_estimated_cost is not None) and
+                (self._cached_estimated_cost != other._cached_estimated_cost)):
+            return False
+        if ((self._cached_median_satisfied_percentage is not None) and
+                (other._cached_median_satisfied_percentage is not None) and
+                (self._cached_median_satisfied_percentage != other._cached_median_satisfied_percentage)):
+            return False
+        if ((self._cached_average_satisfied_percentage is not None) and
+                (other._cached_average_satisfied_percentage is not None) and
+                (self._cached_average_satisfied_percentage != other._cached_average_satisfied_percentage)):
+            return False
+        if ((self._cached_leaf_tasks is not None) and (other._cached_leaf_tasks is not None) and
+                (len(self._cached_leaf_tasks) != len(other._cached_leaf_tasks))):
+            return False
+        if ((self._cached_unsatisfied_tasks is not None) and (other._cached_unsatisfied_tasks is not None) and
+                (len(self._cached_unsatisfied_tasks) != len(other._cached_unsatisfied_tasks))):
+            return False
+        memo: dict[str, Any] = {"visited nodes": set(), "possible mappings": dict[str, set[str]]()}
+        for cur_uid in self.nodes_by_UID.keys():
+            if cur_uid in other.nodes_by_UID.keys():
+                memo["possible mappings"][cur_uid] = {cur_uid}
+        are_equal: bool = True
+        for cur_self_node in self.nodes_by_UID.values():
+            found_match = False
+            if cur_self_node.uid in other.nodes_by_UID.keys():
+                if cur_self_node.are_equal(other.nodes_by_UID[cur_self_node.uid], memo):
+                    found_match = True
+            else:
+                for cur_other_node in other.nodes_by_UID.values():
+                    if cur_self_node.are_equal(cur_other_node, memo):
+                        found_match = True
+                        break
+            if not found_match:
+                are_equal = False
+                break
+        return are_equal

@@ -2,7 +2,7 @@ from abc import ABCMeta
 from enum import Enum, auto
 from typing import List, Tuple
 
-from uniplansy.plans.plan import Plan
+from uniplansy.plans.plan import Plan, PlanDeltas
 from uniplansy.tasks.tasks import Task
 
 
@@ -196,5 +196,95 @@ class PlanComparisonStrategy(metaclass=ABCMeta):
             elif token == PlanComparisonStrategyToken.satisfied_percentage_median_des:
                 keys.append(-plan.median_satisfied_percentage())
         # to guarantee a total ordering
+        keys.append(id(plan))
+        return tuple(keys)
+
+    def plan_plus_delta_to_tuple_key(self, plan: Plan, deltas: PlanDeltas) -> Tuple:
+        keys = []
+        for token in self.order:
+            if token == PlanComparisonStrategyToken.motivation_over_min_cost:
+                try:
+                    keys.append(-(plan.total_motivation() + deltas.total_motivation_delta) /
+                                (plan.min_cost() + deltas.min_cost_delta))
+                except ZeroDivisionError:
+                    if (plan.total_motivation() + deltas.total_motivation_delta) > 0:
+                        keys.append(float('-inf'))
+                    elif (plan.total_motivation() + deltas.total_motivation_delta) < 0:
+                        keys.append(float('inf'))
+                    else:
+                        keys.append(float('nan'))
+            elif token == PlanComparisonStrategyToken.motivation_over_estimated_cost:
+                try:
+                    keys.append(-(plan.total_motivation() + deltas.total_motivation_delta) /
+                                (plan.estimated_cost() + deltas.estimated_cost_delta))
+                except ZeroDivisionError:
+                    if (plan.total_motivation() + deltas.total_motivation_delta) > 0:
+                        keys.append(float('-inf'))
+                    elif (plan.total_motivation() + deltas.total_motivation_delta) < 0:
+                        keys.append(float('inf'))
+                    else:
+                        keys.append(float('nan'))
+            elif token == PlanComparisonStrategyToken.motivation_over_max_cost:
+                try:
+                    keys.append(-(plan.total_motivation() + deltas.total_motivation_delta) /
+                                (plan.max_cost() + deltas.max_cost_delta))
+                except ZeroDivisionError:
+                    if (plan.total_motivation() + deltas.total_motivation_delta) > 0:
+                        keys.append(float('-inf'))
+                    elif (plan.total_motivation() + deltas.total_motivation_delta) < 0:
+                        keys.append(float('inf'))
+                    else:
+                        keys.append(float('nan'))
+            elif token == PlanComparisonStrategyToken.min_cost_over_motivation:
+                try:
+                    keys.append((plan.min_cost() + deltas.min_cost_delta) /
+                                (plan.total_motivation() + deltas.total_motivation_delta))
+                except ZeroDivisionError:
+                    if (plan.min_cost() + deltas.min_cost_delta) < 0:
+                        keys.append(float('-inf'))
+                    elif (plan.min_cost() + deltas.min_cost_delta) > 0:
+                        keys.append(float('inf'))
+                    else:
+                        keys.append(float('nan'))
+            elif token == PlanComparisonStrategyToken.estimated_cost_over_motivation:
+                try:
+                    keys.append((plan.estimated_cost() + deltas.estimated_cost_delta) /
+                                (plan.total_motivation() + deltas.total_motivation_delta))
+                except ZeroDivisionError:
+                    if (plan.estimated_cost() + deltas.estimated_cost_delta) < 0:
+                        keys.append(float('-inf'))
+                    elif (plan.estimated_cost() + deltas.estimated_cost_delta) > 0:
+                        keys.append(float('inf'))
+                    else:
+                        keys.append(float('nan'))
+            elif token == PlanComparisonStrategyToken.max_cost_over_motivation:
+                try:
+                    keys.append((plan.max_cost() + deltas.max_cost_delta) /
+                                (plan.total_motivation() + deltas.total_motivation_delta))
+                except ZeroDivisionError:
+                    if (plan.max_cost() + deltas.max_cost_delta) < 0:
+                        keys.append(float('-inf'))
+                    elif (plan.max_cost() + deltas.max_cost_delta) > 0:
+                        keys.append(float('inf'))
+                    else:
+                        keys.append(float('nan'))
+            elif token == PlanComparisonStrategyToken.motivation:
+                keys.append(-(plan.total_motivation() + deltas.total_motivation_delta))
+            elif token == PlanComparisonStrategyToken.min_cost:
+                keys.append(plan.min_cost() + deltas.min_cost_delta)
+            elif token == PlanComparisonStrategyToken.estimated_cost:
+                keys.append(plan.estimated_cost() + deltas.estimated_cost_delta)
+            elif token == PlanComparisonStrategyToken.max_cost:
+                keys.append(plan.max_cost() + deltas.max_cost_delta)
+            elif token == PlanComparisonStrategyToken.satisfied_percentage_average_asc:
+                keys.append(plan.average_satisfied_percentage(deltas))
+            elif token == PlanComparisonStrategyToken.satisfied_percentage_median_asc:
+                keys.append(plan.median_satisfied_percentage(deltas))
+            elif token == PlanComparisonStrategyToken.satisfied_percentage_average_des:
+                keys.append(-plan.average_satisfied_percentage(deltas))
+            elif token == PlanComparisonStrategyToken.satisfied_percentage_median_des:
+                keys.append(-plan.median_satisfied_percentage(deltas))
+        # to guarantee a total ordering
+        keys.append(str(plan.uid))
         keys.append(id(plan))
         return tuple(keys)

@@ -4,7 +4,7 @@ thread_ids to create unique guids.
 import threading
 from threading import local
 
-from uniplansy.util.guid_suppliers.guid_supplier import GUIDSupplier
+from uniplansy.util.uid_suppliers.uid_supplier import GUIDSupplier
 
 _module_thread_local_data = local()
 

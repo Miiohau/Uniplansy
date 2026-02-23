@@ -11,25 +11,33 @@ from uniplansy.reasoners.core import Reasoner, ReasonerState, ThreadableCommonCo
     PrioritySequenceReasoner, \
     World_Type, Reasoner_Update_Context_Type, SimpleReasoner
 from uniplansy.util.custom_copyable import CustomCopyable
-from uniplansy.util.guid_suppliers.guid_supplier import GUIDSupplier, default_guid_supplier
-from uniplansy.util.guid_suppliers.wrappers.wrappers import UniqueInIDRegistryGUIDSupplierWrapper
+from uniplansy.util.uid_suppliers.uid_supplier import GUIDSupplier, default_guid_supplier
+from uniplansy.util.uid_suppliers.wrappers.wrappers import UniqueInIDRegistryUIDSupplierWrapper
 from uniplansy.util.has_preferred_name import HasPreferredName
 from uniplansy.util.has_uid import HasOptionalUID
 from uniplansy.util.id_registry import IDRegistry
 
 @dataclass
 class ReasonerBuilder(CustomCopyable,HasOptionalUID,metaclass=ABCMeta):
-    """builds Reasoners. Note the name is slight misnomer this class can create more than one Reasoner, the build method merely returns the root Reasoner"""
+    """builds Reasoners. Note the name is slight misnomer this class can create more than one Reasoner,
+    the build method merely returns the root Reasoner
+
+    TODO:finish docstring"""
     uid: Optional[str] = field(default=None, init=False)
 
     def fill_unset_fields(self, id_registry: Optional[IDRegistry[ReasonerBuilder]] = None,
                           guid_supplier: Optional[GUIDSupplier] = None):
-        """this is helper method to fill ReasonerBuilder fields not required at init time but required at build time"""
+        """this is helper method to fill ReasonerBuilder fields not required at init time but required at build time
+
+        TODO:finish docstring"""
         pass
 
     @abstractmethod
     def build(self, id_registry:IDRegistry[ReasonerBuilder],guid_supplier:Optional[GUIDSupplier] = None) -> Reasoner:
-        """builds the Reasoner. Note: id_registry may not be finalized or even contain all the uids contained in sub_reasoner_uids at the time this is called so the id_registry should be passed to the instance if needed."""
+        """builds the Reasoner. Note: id_registry may not be finalized or even contain all the uids contained in
+        sub_reasoner_uids at the time this is called so the id_registry should be passed to the instance if needed.
+
+        TODO:finish docstring"""
         pass
 
     # @override
@@ -62,11 +70,11 @@ class ReasonerBuilderBase(ReasonerBuilder, HasPreferredName,metaclass=ABCMeta):
             if guid_supplier_to_use is None:
                 guid_supplier_to_use = default_guid_supplier
             old_id_registry:Optional[IDRegistry[ReasonerBuilder]]= None
-            if isinstance(guid_supplier_to_use,UniqueInIDRegistryGUIDSupplierWrapper) and id_registry is not None:
+            if isinstance(guid_supplier_to_use, UniqueInIDRegistryUIDSupplierWrapper) and id_registry is not None:
                 old_id_registry = guid_supplier_to_use.registry
                 guid_supplier_to_use.registry = id_registry
             self.uid = guid_supplier_to_use.create_guid(self.preferred_name)
-            if isinstance(guid_supplier_to_use, UniqueInIDRegistryGUIDSupplierWrapper) and old_id_registry is not None:
+            if isinstance(guid_supplier_to_use, UniqueInIDRegistryUIDSupplierWrapper) and old_id_registry is not None:
                 guid_supplier_to_use.registry = old_id_registry
 
     def __deepcopy__(self, memo):
@@ -178,7 +186,9 @@ class BaseReasonerBuilderWrapper(ReasonerBuilder, HasPreferredName, metaclass=AB
     # @override
     def fill_unset_fields(self, id_registry: Optional[IDRegistry[ReasonerBuilder]] = None,
                           guid_supplier: Optional[GUIDSupplier] = None):
-        """this is helper method to fill ReasonerBuilder fields not required at init time but required at build time"""
+        """this is helper method to fill ReasonerBuilder fields not required at init time but required at build time
+
+        TODO:finish docstring"""
         self.wrapped_reasoner_builder.fill_unset_fields(id_registry=id_registry, guid_supplier=guid_supplier)
         if self.preferred_name is None:
             self.preferred_name = self.__class__.__name__ + "@" + BaseReasonerBuilderWrapper.WRAPPED_BUILDER_NAME
@@ -195,11 +205,11 @@ class BaseReasonerBuilderWrapper(ReasonerBuilder, HasPreferredName, metaclass=AB
             if guid_supplier_to_use is None:
                 guid_supplier_to_use = default_guid_supplier
             old_id_registry: Optional[IDRegistry[ReasonerBuilder]] = None
-            if isinstance(guid_supplier_to_use, UniqueInIDRegistryGUIDSupplierWrapper) and id_registry is not None:
+            if isinstance(guid_supplier_to_use, UniqueInIDRegistryUIDSupplierWrapper) and id_registry is not None:
                 old_id_registry = guid_supplier_to_use.registry
                 guid_supplier_to_use.registry = id_registry
             self.uid = guid_supplier_to_use.create_guid(self.preferred_name)
-            if isinstance(guid_supplier_to_use, UniqueInIDRegistryGUIDSupplierWrapper) and old_id_registry is not None:
+            if isinstance(guid_supplier_to_use, UniqueInIDRegistryUIDSupplierWrapper) and old_id_registry is not None:
                 guid_supplier_to_use.registry = old_id_registry
 
     # @override

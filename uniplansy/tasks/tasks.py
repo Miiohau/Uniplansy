@@ -22,10 +22,13 @@ class TaskDescription(HasRequiredUID):
     # @override
     def __eq__(self, other):
         if isinstance(other, TaskDescription):
-            if __debug__ and (self.uid == other.uid):
-                assert self.human_understandable_string == other.human_understandable_string, f"by guid \"{self.human_understandable_string}\" {self.uid} should equal \"{other.human_understandable_string}\" {self.uid} but they have different human understandable strings"
-                assert self.context == other.context, f"by guid \"{self.human_understandable_string}\" \"{self.uid}\" should equal \"{other.human_understandable_string}\" \"{other.uid}\" but \"{self.human_understandable_string}\" has context {self.context} and \"{other.human_understandable_string}\" has context {other.context}"
-            return self.uid == other.uid
+            if self.uid == other.uid:
+                if __debug__ :
+                    assert self.human_understandable_string == other.human_understandable_string, f"by guid \"{self.human_understandable_string}\" {self.uid} should equal \"{other.human_understandable_string}\" {self.uid} but they have different human understandable strings"
+                    assert self.context == other.context, f"by guid \"{self.human_understandable_string}\" \"{self.uid}\" should equal \"{other.human_understandable_string}\" \"{other.uid}\" but \"{self.human_understandable_string}\" has context {self.context} and \"{other.human_understandable_string}\" has context {other.context}"
+                return True
+            return (self.human_understandable_string == other.human_understandable_string and
+                    self.context == other.context)
         return NotImplemented
 
     # @override
@@ -58,6 +61,19 @@ class Task(PlanGraphNode):
         if isinstance(other, Task):
             return self.description == other.description
         return NotImplemented
+
+    def could_be_equal(self, other) -> bool:
+        if not super().could_be_equal(other):
+            return False
+        if self.description != other.description:
+            return False
+        if self.task_description_id_context != other.task_description_id_context:
+            return False
+        return ((self.motivation == other.motivation) and
+                (self.estimated_cost == other.estimated_cost) and
+                (self.min_cost == other.min_cost) and
+                (self.max_cost == other.max_cost) and
+                (self.satisfied_percentage == other.satisfied_percentage))
 
     def set_matching_deep_copy(self,other:Self,memo):
         super().set_matching_deep_copy(other,memo)

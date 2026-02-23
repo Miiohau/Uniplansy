@@ -27,7 +27,8 @@ the core package dealing with the classes and Strategies needed to run the plann
 # 1. the set of decomposers
 # 2. how we select a plan to expand and which decomposer to use (PlanningStrategy,
 # usually it is broken down into a PlanSelectionStrategy and a DecomposerSelectionStrategy)
-# 3. how we select the plan to convert to a reasoner graph (PlanSelectionStrategy)
-# 4. how the output plan is converted to a reasoner graph
-# 5. if we save some invalid plans for later planning iterations and
+# 3. when we stop planning and select a plan for further processing (StoppingStrategy)
+# 4. how we select the plan for further processing (PlanSelectionStrategy)
+# 5. how the output plan is converted to a reasoner graph (ConvertionStrategy)
+# 6. if we save some invalid plans for later planning iterations and
 # how we do that and how and when we restore them (PlanCasheStrategy)

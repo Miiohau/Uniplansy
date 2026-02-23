@@ -16,13 +16,22 @@ from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError
 
 @dataclass
 class DecomposerNode(PlanGraphNode):
-    node_decomposer:Decomposer
-    notes:immutabledict[str, Any] = immutabledict({})
+    node_decomposer: Decomposer
+    notes: immutabledict[str, Any] = immutabledict({})
 
     # @override
     def set_matching_deep_copy(self, other:Self, memo):
         super().set_matching_deep_copy(other, memo)
         other.notes = self.notes
+
+    def could_be_equal(self, other) -> bool:
+        if not super().could_be_equal(other):
+            return False
+        if self.node_decomposer.uid != other.node_decomposer.uid:
+            return False
+        if self.notes != other.notes:
+            return False
+        return True
 
     # @override
     def __deepcopy__(self, memo):
