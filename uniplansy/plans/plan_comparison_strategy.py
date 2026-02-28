@@ -1,12 +1,16 @@
-from abc import ABCMeta
+"""defines PlanComparisonStrategy and its supporting and basic subclasses
+
+"""
+from abc import ABCMeta, abstractmethod
 from enum import Enum, auto
-from typing import List, Tuple
+from typing import List, Tuple, Set
 
 from uniplansy.plans.plan import Plan, PlanDeltas
 from uniplansy.tasks.tasks import Task
 
 
 class PlanComparisonStrategyToken(Enum):
+    """the set of common tokens used in PlanComparisonStrategy Tuple keys"""
     motivation_over_min_cost = auto()
     motivation_over_estimated_cost = auto()
     motivation_over_max_cost = auto()
@@ -22,19 +26,79 @@ class PlanComparisonStrategyToken(Enum):
     satisfied_percentage_median_asc = auto()
     satisfied_percentage_median_des = auto()
 
+
+class PlanValueToken(Enum):
+    """the set of tokens returned by PlanComparisonStrategy.get_values_needed"""
+    min_cost = auto()
+    estimated_cost = auto()
+    max_cost = auto()
+    motivation = auto()
+    satisfied_percentage_average = auto()
+    satisfied_percentage_median = auto()
+
+
 # cost ascending motivation descending
 class PlanComparisonStrategy(metaclass=ABCMeta):
+    """a Strategy to compare (sort) Tasks, Plans and Plan PlanDeltas pairs
+
+    task_to_tuple_key(method): creates a tuple key for a Task
+    plan_to_tuple_key(method): creates a tuple key for a Plan
+    plan_plus_delta_to_tuple_key(method): creates a tuple key for a Plan PlanDeltas pair
+    get_values_needed(method): returns the set of common values used by this PlanComparisonStrategy
+    """
+
+    @abstractmethod
+    def task_to_tuple_key(self, task: Task) -> Tuple:
+        """creates a tuple key for a Task
+
+        :param task: the Task to create a tuple key for
+        :return: a tuple key for the Task
+        """
+        pass
+
+    @abstractmethod
+    def plan_to_tuple_key(self, plan: Plan) -> Tuple:
+        """creates a tuple key for a plan
+
+        :param plan: the plan to create a tuple key for
+        :return: a tuple key for the Plan
+        """
+        pass
+
+    @abstractmethod
+    def plan_plus_delta_to_tuple_key(self, plan: Plan, deltas: PlanDeltas) -> Tuple:
+        """creates a tuple key for a Plan PlanDeltas pair.
+
+        This method is often used to sort Plan Decomposer pairs
+        :param plan: the Plan part of the Plan PlanDeltas pair
+        :param deltas: the PlanDeltas part of the Plan PlanDeltas pair
+        :return: a tuple key for the Plan PlanDeltas pair
+        """
+        pass
+
+    @abstractmethod
+    def get_values_needed(self) -> Set[PlanValueToken]:
+        """returns the set of common values used by this PlanComparisonStrategy
+
+        :return: the set of common values used by this PlanComparisonStrategy
+        """
+        pass
+
+
+class BasicPlanComparisonStrategy(PlanComparisonStrategy):
+    """a PlanComparisonStrategy that uses a raw list of PlanComparisonStrategyToken to create its Tuple keys"""
 
     def __init__(self, order: List[PlanComparisonStrategyToken]):
         super().__init__()
         self.order: List[PlanComparisonStrategyToken] = order
+        self._values_needed: Set[PlanValueToken] = set()
 
     def task_to_tuple_key(self, task: Task) -> Tuple:
         keys = []
         for token in self.order:
             if token == PlanComparisonStrategyToken.motivation_over_min_cost:
                 try:
-                    keys.append(-task.motivation/task.min_cost)
+                    keys.append(-task.motivation / task.min_cost)
                 except ZeroDivisionError:
                     if task.motivation > 0:
                         keys.append(float('-inf'))
@@ -44,7 +108,7 @@ class PlanComparisonStrategy(metaclass=ABCMeta):
                         keys.append(float('nan'))
             elif token == PlanComparisonStrategyToken.motivation_over_estimated_cost:
                 try:
-                    keys.append(-task.motivation/task.estimated_cost)
+                    keys.append(-task.motivation / task.estimated_cost)
                 except ZeroDivisionError:
                     if task.motivation > 0:
                         keys.append(float('-inf'))
@@ -54,7 +118,7 @@ class PlanComparisonStrategy(metaclass=ABCMeta):
                         keys.append(float('nan'))
             elif token == PlanComparisonStrategyToken.motivation_over_max_cost:
                 try:
-                    keys.append(-task.motivation/task.max_cost)
+                    keys.append(-task.motivation / task.max_cost)
                 except ZeroDivisionError:
                     if task.motivation > 0:
                         keys.append(float('-inf'))
@@ -64,7 +128,7 @@ class PlanComparisonStrategy(metaclass=ABCMeta):
                         keys.append(float('nan'))
             elif token == PlanComparisonStrategyToken.min_cost_over_motivation:
                 try:
-                    keys.append(task.min_cost/task.motivation)
+                    keys.append(task.min_cost / task.motivation)
                 except ZeroDivisionError:
                     if task.min_cost < 0:
                         keys.append(float('-inf'))
@@ -74,7 +138,7 @@ class PlanComparisonStrategy(metaclass=ABCMeta):
                         keys.append(float('nan'))
             elif token == PlanComparisonStrategyToken.estimated_cost_over_motivation:
                 try:
-                    keys.append(task.estimated_cost/task.motivation)
+                    keys.append(task.estimated_cost / task.motivation)
                 except ZeroDivisionError:
                     if task.estimated_cost < 0:
                         keys.append(float('-inf'))
@@ -84,7 +148,7 @@ class PlanComparisonStrategy(metaclass=ABCMeta):
                         keys.append(float('nan'))
             elif token == PlanComparisonStrategyToken.max_cost_over_motivation:
                 try:
-                    keys.append(task.max_cost/task.motivation)
+                    keys.append(task.max_cost / task.motivation)
                 except ZeroDivisionError:
                     if task.max_cost < 0:
                         keys.append(float('-inf'))
@@ -288,3 +352,42 @@ class PlanComparisonStrategy(metaclass=ABCMeta):
         keys.append(str(plan.uid))
         keys.append(id(plan))
         return tuple(keys)
+
+    def get_values_needed(self) -> Set[PlanValueToken]:
+        if len(self._values_needed) == 0:
+            for cur_token in self.order:
+                if cur_token == PlanComparisonStrategyToken.motivation_over_min_cost:
+                    self._values_needed.add(PlanValueToken.motivation)
+                    self._values_needed.add(PlanValueToken.min_cost)
+                elif cur_token == PlanComparisonStrategyToken.motivation_over_estimated_cost:
+                    self._values_needed.add(PlanValueToken.motivation)
+                    self._values_needed.add(PlanValueToken.estimated_cost)
+                elif cur_token == PlanComparisonStrategyToken.motivation_over_max_cost:
+                    self._values_needed.add(PlanValueToken.motivation)
+                    self._values_needed.add(PlanValueToken.max_cost)
+                elif cur_token == PlanComparisonStrategyToken.min_cost_over_motivation:
+                    self._values_needed.add(PlanValueToken.motivation)
+                    self._values_needed.add(PlanValueToken.min_cost)
+                elif cur_token == PlanComparisonStrategyToken.estimated_cost_over_motivation:
+                    self._values_needed.add(PlanValueToken.motivation)
+                    self._values_needed.add(PlanValueToken.estimated_cost)
+                elif cur_token == PlanComparisonStrategyToken.max_cost_over_motivation:
+                    self._values_needed.add(PlanValueToken.motivation)
+                    self._values_needed.add(PlanValueToken.max_cost)
+                elif cur_token == PlanComparisonStrategyToken.min_cost:
+                    self._values_needed.add(PlanValueToken.min_cost)
+                elif cur_token == PlanComparisonStrategyToken.estimated_cost:
+                    self._values_needed.add(PlanValueToken.estimated_cost)
+                elif cur_token == PlanComparisonStrategyToken.max_cost:
+                    self._values_needed.add(PlanValueToken.max_cost)
+                elif cur_token == PlanComparisonStrategyToken.motivation:
+                    self._values_needed.add(PlanValueToken.motivation)
+                elif cur_token == PlanComparisonStrategyToken.satisfied_percentage_average_asc:
+                    self._values_needed.add(PlanValueToken.satisfied_percentage_average)
+                elif cur_token == PlanComparisonStrategyToken.satisfied_percentage_average_des:
+                    self._values_needed.add(PlanValueToken.satisfied_percentage_average)
+                elif cur_token == PlanComparisonStrategyToken.satisfied_percentage_median_asc:
+                    self._values_needed.add(PlanValueToken.satisfied_percentage_median)
+                elif cur_token == PlanComparisonStrategyToken.satisfied_percentage_median_des:
+                    self._values_needed.add(PlanValueToken.satisfied_percentage_median)
+        return self._values_needed

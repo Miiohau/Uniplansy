@@ -87,6 +87,7 @@ class Planner:
             delegate=plan_uid_supplier
         )
         self.planning_strategy.introduce_plan_cache_strategy(self.cache_strategy)
+        self.final_plan_selection_strategy.introduce_plan_cache_strategy(self.cache_strategy)
         self.cache_strategy.introduce_planning_strategy(self.planning_strategy)
         self.planning_context.notes["new plan uids"] = [root_name]
 
@@ -136,4 +137,4 @@ class Planner:
                                                             self.planning_context.plan_by_uid.values()]
             self.cache_strategy.manage_active_plans(self.planning_context)
         self.cache_strategy.manage_active_plans(self.planning_context, finalizing=True)
-        return self.final_plan_selection_strategy.select_plan(self.planning_context)
+        return self.final_plan_selection_strategy.select_plan(self.planning_context, finalizing=True)
