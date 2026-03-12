@@ -3,7 +3,8 @@
 """
 from abc import ABCMeta, abstractmethod
 from enum import Enum, auto
-from typing import List, Tuple, Set
+from fractions import Fraction
+from typing import List, Tuple, Set, Optional
 
 from uniplansy.plans.plan import Plan, PlanDeltas
 from uniplansy.tasks.tasks import Task
@@ -94,104 +95,201 @@ class PlanComparisonStrategy(metaclass=ABCMeta):
 class BasicPlanComparisonStrategy(PlanComparisonStrategy):
     """a PlanComparisonStrategy that uses a raw list of PlanComparisonStrategyToken to create its Tuple keys"""
 
-    def __init__(self, order: List[PlanComparisonStrategyToken]):
+    def __init__(self, order: List[PlanComparisonStrategyToken],
+                 preferred_type: Optional[float | Fraction | type[float | Fraction]] = None):
         super().__init__()
         self.order: List[PlanComparisonStrategyToken] = order
         self._values_needed: Set[PlanValueToken] = set()
+        self.preferred_type = preferred_type
 
-    def task_to_tuple_key(self, task: Task) -> Tuple:
-        keys = []
+    def _generate_standard_keys(self,
+                                summary_dict:dict[PlanValueToken, float | Fraction]
+                                ) -> List[float | Fraction | str]:
+        keys: List[float | Fraction | str] = []
         for token in self.order:
             if token == PlanComparisonStrategyToken.motivation_over_min_cost:
                 try:
-                    keys.append(-task.motivation / task.min_cost)
+                    keys.append(-summary_dict[PlanValueToken.motivation] / summary_dict[PlanValueToken.min_cost])
                 except ZeroDivisionError:
-                    if task.motivation > 0:
+                    if summary_dict[PlanValueToken.motivation] > 0:
                         keys.append(float('-inf'))
-                    elif task.motivation < 0:
+                    elif summary_dict[PlanValueToken.motivation] < 0:
                         keys.append(float('inf'))
                     else:
                         keys.append(float('nan'))
             elif token == PlanComparisonStrategyToken.motivation_over_estimated_cost:
                 try:
-                    keys.append(-task.motivation / task.estimated_cost)
+                    keys.append(-summary_dict[PlanValueToken.motivation] / summary_dict[PlanValueToken.estimated_cost])
                 except ZeroDivisionError:
-                    if task.motivation > 0:
+                    if summary_dict[PlanValueToken.motivation] > 0:
                         keys.append(float('-inf'))
-                    elif task.motivation < 0:
+                    elif summary_dict[PlanValueToken.motivation] < 0:
                         keys.append(float('inf'))
                     else:
                         keys.append(float('nan'))
             elif token == PlanComparisonStrategyToken.motivation_over_max_cost:
                 try:
-                    keys.append(-task.motivation / task.max_cost)
+                    keys.append(-summary_dict[PlanValueToken.motivation] / summary_dict[PlanValueToken.max_cost])
                 except ZeroDivisionError:
-                    if task.motivation > 0:
+                    if summary_dict[PlanValueToken.motivation] > 0:
                         keys.append(float('-inf'))
-                    elif task.motivation < 0:
+                    elif summary_dict[PlanValueToken.motivation] < 0:
                         keys.append(float('inf'))
                     else:
                         keys.append(float('nan'))
             elif token == PlanComparisonStrategyToken.min_cost_over_motivation:
                 try:
-                    keys.append(task.min_cost / task.motivation)
+                    keys.append(summary_dict[PlanValueToken.min_cost] / summary_dict[PlanValueToken.motivation])
                 except ZeroDivisionError:
-                    if task.min_cost < 0:
+                    if summary_dict[PlanValueToken.min_cost] < 0:
                         keys.append(float('-inf'))
-                    elif task.min_cost > 0:
+                    elif summary_dict[PlanValueToken.min_cost] > 0:
                         keys.append(float('inf'))
                     else:
                         keys.append(float('nan'))
             elif token == PlanComparisonStrategyToken.estimated_cost_over_motivation:
                 try:
-                    keys.append(task.estimated_cost / task.motivation)
+                    keys.append(summary_dict[PlanValueToken.estimated_cost] / summary_dict[PlanValueToken.motivation])
                 except ZeroDivisionError:
-                    if task.estimated_cost < 0:
+                    if summary_dict[PlanValueToken.estimated_cost] < 0:
                         keys.append(float('-inf'))
-                    elif task.estimated_cost > 0:
+                    elif summary_dict[PlanValueToken.estimated_cost] > 0:
                         keys.append(float('inf'))
                     else:
                         keys.append(float('nan'))
             elif token == PlanComparisonStrategyToken.max_cost_over_motivation:
                 try:
-                    keys.append(task.max_cost / task.motivation)
+                    keys.append(summary_dict[PlanValueToken.max_cost] / summary_dict[PlanValueToken.motivation])
                 except ZeroDivisionError:
-                    if task.max_cost < 0:
+                    if summary_dict[PlanValueToken.max_cost] < 0:
                         keys.append(float('-inf'))
-                    elif task.max_cost > 0:
+                    elif summary_dict[PlanValueToken.max_cost] > 0:
                         keys.append(float('inf'))
                     else:
                         keys.append(float('nan'))
             elif token == PlanComparisonStrategyToken.motivation:
-                keys.append(-task.motivation)
+                keys.append(-summary_dict[PlanValueToken.motivation])
             elif token == PlanComparisonStrategyToken.min_cost:
-                keys.append(task.min_cost)
+                keys.append(summary_dict[PlanValueToken.min_cost])
             elif token == PlanComparisonStrategyToken.estimated_cost:
-                keys.append(task.estimated_cost)
+                keys.append(summary_dict[PlanValueToken.estimated_cost])
             elif token == PlanComparisonStrategyToken.max_cost:
-                keys.append(task.max_cost)
+                keys.append(summary_dict[PlanValueToken.max_cost])
             elif token == PlanComparisonStrategyToken.satisfied_percentage_average_asc:
-                keys.append(task.satisfied_percentage)
+                keys.append(summary_dict[PlanValueToken.satisfied_percentage_average])
             elif token == PlanComparisonStrategyToken.satisfied_percentage_median_asc:
-                keys.append(task.satisfied_percentage)
+                keys.append(summary_dict[PlanValueToken.satisfied_percentage_median])
             elif token == PlanComparisonStrategyToken.satisfied_percentage_average_des:
-                keys.append(-task.satisfied_percentage)
+                keys.append(-summary_dict[PlanValueToken.satisfied_percentage_average])
             elif token == PlanComparisonStrategyToken.satisfied_percentage_median_des:
-                keys.append(-task.satisfied_percentage)
+                keys.append(-summary_dict[PlanValueToken.satisfied_percentage_median])
             elif token == PlanComparisonStrategyToken.tasks_fully_satisfied_percentage_asc:
-                keys.append(task.satisfied_percentage)
+                keys.append(summary_dict[PlanValueToken.tasks_fully_satisfied_percentage])
             elif token == PlanComparisonStrategyToken.tasks_fully_satisfied_percentage_des:
-                keys.append(-task.satisfied_percentage)
+                keys.append(-summary_dict[PlanValueToken.tasks_fully_satisfied_percentage])
             elif token == PlanComparisonStrategyToken.concrete_action_percentage_asc:
-                if len(task.children) > 0:
-                    keys.append(task.satisfied_percentage - 1)
-                else:
-                    keys.append(task.satisfied_percentage)
+                keys.append(summary_dict[PlanValueToken.concrete_action_percentage])
             elif token == PlanComparisonStrategyToken.concrete_action_percentage_des:
-                if len(task.children) > 0:
-                    keys.append(1 - task.satisfied_percentage)
+                keys.append(-summary_dict[PlanValueToken.concrete_action_percentage])
+        return keys
+
+    def task_to_tuple_key(self, task: Task) -> Tuple:
+        summary_dict: dict[PlanValueToken, float | Fraction] = {}
+        for token in self.get_values_needed():
+            if token == PlanValueToken.motivation:
+                if self.preferred_type is not None:
+                    if (isinstance(self.preferred_type, float) or
+                            issubclass(self.preferred_type, float) or
+                            self.preferred_type is float):
+                        summary_dict[token] = float(task.motivation)
+                    else:
+                        summary_dict[token] = Fraction(task.motivation)
                 else:
-                    keys.append(-task.satisfied_percentage)
+                    summary_dict[token] = task.motivation
+            elif token == PlanValueToken.min_cost:
+                if self.preferred_type is not None:
+                    if (isinstance(self.preferred_type, float) or
+                            issubclass(self.preferred_type, float) or
+                            self.preferred_type is float):
+                        summary_dict[token] = float(task.motivation)
+                    else:
+                        summary_dict[token] = Fraction(task.motivation)
+                else:
+                    summary_dict[token] = task.motivation
+            elif token == PlanValueToken.estimated_cost:
+                if self.preferred_type is not None:
+                    if (isinstance(self.preferred_type, float) or
+                            issubclass(self.preferred_type, float) or
+                            self.preferred_type is float):
+                        summary_dict[token] = float(task.motivation)
+                    else:
+                        summary_dict[token] = Fraction(task.motivation)
+                else:
+                    summary_dict[token] = task.motivation
+            elif token == PlanValueToken.max_cost:
+                if self.preferred_type is not None:
+                    if (isinstance(self.preferred_type, float) or
+                            issubclass(self.preferred_type, float) or
+                            self.preferred_type is float):
+                        summary_dict[token] = float(task.motivation)
+                    else:
+                        summary_dict[token] = Fraction(task.motivation)
+                else:
+                    summary_dict[token] = task.motivation
+            elif token == PlanValueToken.tasks_fully_satisfied_percentage:
+                if self.preferred_type is not None:
+                    if (isinstance(self.preferred_type, float) or
+                            issubclass(self.preferred_type, float) or
+                            self.preferred_type is float):
+                        summary_dict[token] = float(task.satisfied_percentage)
+                    else:
+                        summary_dict[token] = Fraction(task.satisfied_percentage)
+                else:
+                    summary_dict[token] = task.satisfied_percentage
+            elif token == PlanValueToken.concrete_action_percentage:
+                if self.preferred_type is not None:
+                    flux_concrete_action_percentage: float | Fraction
+                    if (isinstance(self.preferred_type, float) or
+                            issubclass(self.preferred_type, float) or
+                            self.preferred_type is float):
+                        if len(task.children) > 0:
+                            flux_concrete_action_percentage = float(task.satisfied_percentage) - float(1)
+                        else:
+                            flux_concrete_action_percentage = float(task.satisfied_percentage)
+                        summary_dict[token] = flux_concrete_action_percentage
+                    else:
+                        if len(task.children) > 0:
+                            flux_concrete_action_percentage = Fraction(task.satisfied_percentage) - Fraction(1)
+                        else:
+                            flux_concrete_action_percentage = Fraction(task.satisfied_percentage)
+                        summary_dict[token] = flux_concrete_action_percentage
+                else:
+                    if len(task.children) > 0:
+                        flux_concrete_action_percentage = task.satisfied_percentage - 1
+                    else:
+                        flux_concrete_action_percentage = task.satisfied_percentage
+                    summary_dict[token] = flux_concrete_action_percentage
+            elif token == PlanValueToken.satisfied_percentage_average:
+                if self.preferred_type is not None:
+                    if (isinstance(self.preferred_type, float) or
+                            issubclass(self.preferred_type, float) or
+                            self.preferred_type is float):
+                        summary_dict[token] = float(task.satisfied_percentage)
+                    else:
+                        summary_dict[token] = Fraction(task.satisfied_percentage)
+                else:
+                    summary_dict[token] = task.satisfied_percentage
+            elif token == PlanValueToken.satisfied_percentage_median:
+                if self.preferred_type is not None:
+                    if (isinstance(self.preferred_type, float) or
+                            issubclass(self.preferred_type, float) or
+                            self.preferred_type is float):
+                        summary_dict[token] = float(task.satisfied_percentage)
+                    else:
+                        summary_dict[token] = Fraction(task.satisfied_percentage)
+                else:
+                    summary_dict[token] = task.satisfied_percentage
+        keys = self._generate_standard_keys(summary_dict)
         # to guarantee a total ordering
         keys.append(task.description.human_understandable_string)
         keys.append(task.description.uid)
@@ -201,189 +299,115 @@ class BasicPlanComparisonStrategy(PlanComparisonStrategy):
         return tuple(keys)
 
     def plan_to_tuple_key(self, plan: Plan) -> Tuple:
-        keys = []
-        for token in self.order:
-            if token == PlanComparisonStrategyToken.motivation_over_min_cost:
-                try:
-                    keys.append(-plan.total_motivation() / plan.min_cost())
-                except ZeroDivisionError:
-                    if plan.total_motivation() > 0:
-                        keys.append(float('-inf'))
-                    elif plan.total_motivation() < 0:
-                        keys.append(float('inf'))
-                    else:
-                        keys.append(float('nan'))
-            elif token == PlanComparisonStrategyToken.motivation_over_estimated_cost:
-                try:
-                    keys.append(-plan.total_motivation() / plan.estimated_cost())
-                except ZeroDivisionError:
-                    if plan.total_motivation() > 0:
-                        keys.append(float('-inf'))
-                    elif plan.total_motivation() < 0:
-                        keys.append(float('inf'))
-                    else:
-                        keys.append(float('nan'))
-            elif token == PlanComparisonStrategyToken.motivation_over_max_cost:
-                try:
-                    keys.append(-plan.total_motivation() / plan.max_cost())
-                except ZeroDivisionError:
-                    if plan.total_motivation() > 0:
-                        keys.append(float('-inf'))
-                    elif plan.total_motivation() < 0:
-                        keys.append(float('inf'))
-                    else:
-                        keys.append(float('nan'))
-            elif token == PlanComparisonStrategyToken.min_cost_over_motivation:
-                try:
-                    keys.append(plan.min_cost() / plan.total_motivation())
-                except ZeroDivisionError:
-                    if plan.min_cost() < 0:
-                        keys.append(float('-inf'))
-                    elif plan.min_cost() > 0:
-                        keys.append(float('inf'))
-                    else:
-                        keys.append(float('nan'))
-            elif token == PlanComparisonStrategyToken.estimated_cost_over_motivation:
-                try:
-                    keys.append(plan.estimated_cost() / plan.total_motivation())
-                except ZeroDivisionError:
-                    if plan.estimated_cost() < 0:
-                        keys.append(float('-inf'))
-                    elif plan.estimated_cost() > 0:
-                        keys.append(float('inf'))
-                    else:
-                        keys.append(float('nan'))
-            elif token == PlanComparisonStrategyToken.max_cost_over_motivation:
-                try:
-                    keys.append(plan.max_cost() / plan.total_motivation())
-                except ZeroDivisionError:
-                    if plan.max_cost() < 0:
-                        keys.append(float('-inf'))
-                    elif plan.max_cost() > 0:
-                        keys.append(float('inf'))
-                    else:
-                        keys.append(float('nan'))
-            elif token == PlanComparisonStrategyToken.motivation:
-                keys.append(-plan.total_motivation())
-            elif token == PlanComparisonStrategyToken.min_cost:
-                keys.append(plan.min_cost())
-            elif token == PlanComparisonStrategyToken.estimated_cost:
-                keys.append(plan.estimated_cost())
-            elif token == PlanComparisonStrategyToken.max_cost:
-                keys.append(plan.max_cost())
-            elif token == PlanComparisonStrategyToken.satisfied_percentage_average_asc:
-                keys.append(plan.average_satisfied_percentage())
-            elif token == PlanComparisonStrategyToken.satisfied_percentage_median_asc:
-                keys.append(plan.median_satisfied_percentage())
-            elif token == PlanComparisonStrategyToken.satisfied_percentage_average_des:
-                keys.append(-plan.average_satisfied_percentage())
-            elif token == PlanComparisonStrategyToken.satisfied_percentage_median_des:
-                keys.append(-plan.median_satisfied_percentage())
-            elif token == PlanComparisonStrategyToken.tasks_fully_satisfied_percentage_asc:
-                keys.append(plan.tasks_fully_satisfied_percentage())
-            elif token == PlanComparisonStrategyToken.tasks_fully_satisfied_percentage_des:
-                keys.append(-plan.tasks_fully_satisfied_percentage())
-            elif token == PlanComparisonStrategyToken.concrete_action_percentage_asc:
-                keys.append(plan.concrete_action_percentage())
-            elif token == PlanComparisonStrategyToken.concrete_action_percentage_des:
-                keys.append(-plan.concrete_action_percentage())
+        summary_dict: dict[PlanValueToken, float | Fraction] = {}
+        for token in self.get_values_needed():
+            if token == PlanValueToken.motivation:
+                summary_dict[token] = plan.total_motivation(preferred_type=self.preferred_type)
+            elif token == PlanValueToken.min_cost:
+                summary_dict[token] = plan.min_cost(preferred_type=self.preferred_type)
+            elif token == PlanValueToken.estimated_cost:
+                summary_dict[token] = plan.estimated_cost(preferred_type=self.preferred_type)
+            elif token == PlanValueToken.max_cost:
+                summary_dict[token] = plan.max_cost(preferred_type=self.preferred_type)
+            elif token == PlanValueToken.satisfied_percentage_median:
+                summary_dict[token] = plan.satisfied_percentage_median(preferred_type=self.preferred_type)
+            elif token == PlanValueToken.satisfied_percentage_average:
+                summary_dict[token] = plan.satisfied_percentage_average(preferred_type=self.preferred_type)
+            elif token == PlanValueToken.concrete_action_percentage:
+                if self.preferred_type is not None and (isinstance(self.preferred_type, float) or
+                                                        issubclass(self.preferred_type, float) or
+                                                        self.preferred_type is float):
+                    summary_dict[token] = float(plan.concrete_action_percentage())
+                else:
+                    summary_dict[token] = plan.concrete_action_percentage()
+            elif token == PlanValueToken.tasks_fully_satisfied_percentage:
+                if self.preferred_type is not None and (isinstance(self.preferred_type, float) or
+                                                        issubclass(self.preferred_type, float) or
+                                                        self.preferred_type is float):
+                    summary_dict[token] = float(plan.tasks_fully_satisfied_percentage())
+                else:
+                    summary_dict[token] = plan.tasks_fully_satisfied_percentage()
+        keys = self._generate_standard_keys(summary_dict)
         # to guarantee a total ordering
         keys.append(id(plan))
         return tuple(keys)
 
     def plan_plus_delta_to_tuple_key(self, plan: Plan, deltas: PlanDeltas) -> Tuple:
+        # TODO:make this
         keys = []
-        for token in self.order:
-            if token == PlanComparisonStrategyToken.motivation_over_min_cost:
-                try:
-                    keys.append(-(plan.total_motivation() + deltas.total_motivation_delta) /
-                                (plan.min_cost() + deltas.min_cost_delta))
-                except ZeroDivisionError:
-                    if (plan.total_motivation() + deltas.total_motivation_delta) > 0:
-                        keys.append(float('-inf'))
-                    elif (plan.total_motivation() + deltas.total_motivation_delta) < 0:
-                        keys.append(float('inf'))
+        summary_dict:dict[PlanValueToken, float | Fraction] = {}
+        for token in self.get_values_needed():
+            if token == PlanValueToken.motivation:
+                if self.preferred_type is not None:
+                    if (isinstance(self.preferred_type, float) or
+                            issubclass(self.preferred_type, float) or
+                            self.preferred_type is float):
+                        summary_dict[token] = (plan.total_motivation(preferred_type=self.preferred_type) +
+                                               float(deltas.total_motivation_delta))
                     else:
-                        keys.append(float('nan'))
-            elif token == PlanComparisonStrategyToken.motivation_over_estimated_cost:
-                try:
-                    keys.append(-(plan.total_motivation() + deltas.total_motivation_delta) /
-                                (plan.estimated_cost() + deltas.estimated_cost_delta))
-                except ZeroDivisionError:
-                    if (plan.total_motivation() + deltas.total_motivation_delta) > 0:
-                        keys.append(float('-inf'))
-                    elif (plan.total_motivation() + deltas.total_motivation_delta) < 0:
-                        keys.append(float('inf'))
+                        summary_dict[token] = (plan.total_motivation(preferred_type=self.preferred_type) +
+                                               Fraction(deltas.total_motivation_delta))
+                else:
+                    summary_dict[token] = (plan.total_motivation(preferred_type=self.preferred_type) +
+                                           deltas.total_motivation_delta)
+            elif token == PlanValueToken.min_cost:
+                if self.preferred_type is not None:
+                    if (isinstance(self.preferred_type, float) or
+                            issubclass(self.preferred_type, float) or
+                            self.preferred_type is float):
+                        summary_dict[token] = (plan.min_cost(preferred_type=self.preferred_type) +
+                                               float(deltas.min_cost_delta))
                     else:
-                        keys.append(float('nan'))
-            elif token == PlanComparisonStrategyToken.motivation_over_max_cost:
-                try:
-                    keys.append(-(plan.total_motivation() + deltas.total_motivation_delta) /
-                                (plan.max_cost() + deltas.max_cost_delta))
-                except ZeroDivisionError:
-                    if (plan.total_motivation() + deltas.total_motivation_delta) > 0:
-                        keys.append(float('-inf'))
-                    elif (plan.total_motivation() + deltas.total_motivation_delta) < 0:
-                        keys.append(float('inf'))
+                        summary_dict[token] = (plan.min_cost(preferred_type=self.preferred_type) +
+                                               Fraction(deltas.min_cost_delta))
+                else:
+                    summary_dict[token] = (plan.min_cost(preferred_type=self.preferred_type) +
+                                           deltas.min_cost_delta)
+            elif token == PlanValueToken.estimated_cost:
+                if self.preferred_type is not None:
+                    if (isinstance(self.preferred_type, float) or
+                            issubclass(self.preferred_type, float) or
+                            self.preferred_type is float):
+                        summary_dict[token] = (plan.estimated_cost(preferred_type=self.preferred_type) +
+                                               float(deltas.estimated_cost_delta))
                     else:
-                        keys.append(float('nan'))
-            elif token == PlanComparisonStrategyToken.min_cost_over_motivation:
-                try:
-                    keys.append((plan.min_cost() + deltas.min_cost_delta) /
-                                (plan.total_motivation() + deltas.total_motivation_delta))
-                except ZeroDivisionError:
-                    if (plan.min_cost() + deltas.min_cost_delta) < 0:
-                        keys.append(float('-inf'))
-                    elif (plan.min_cost() + deltas.min_cost_delta) > 0:
-                        keys.append(float('inf'))
+                        summary_dict[token] = (plan.estimated_cost(preferred_type=self.preferred_type) +
+                                               Fraction(deltas.estimated_cost_delta))
+                else:
+                    summary_dict[token] = (plan.estimated_cost(preferred_type=self.preferred_type) +
+                                           deltas.estimated_cost_delta)
+            elif token == PlanValueToken.max_cost:
+                if self.preferred_type is not None:
+                    if (isinstance(self.preferred_type, float) or
+                            issubclass(self.preferred_type, float) or
+                            self.preferred_type is float):
+                        summary_dict[token] = (plan.max_cost(preferred_type=self.preferred_type) +
+                                               float(deltas.max_cost_delta))
                     else:
-                        keys.append(float('nan'))
-            elif token == PlanComparisonStrategyToken.estimated_cost_over_motivation:
-                try:
-                    keys.append((plan.estimated_cost() + deltas.estimated_cost_delta) /
-                                (plan.total_motivation() + deltas.total_motivation_delta))
-                except ZeroDivisionError:
-                    if (plan.estimated_cost() + deltas.estimated_cost_delta) < 0:
-                        keys.append(float('-inf'))
-                    elif (plan.estimated_cost() + deltas.estimated_cost_delta) > 0:
-                        keys.append(float('inf'))
-                    else:
-                        keys.append(float('nan'))
-            elif token == PlanComparisonStrategyToken.max_cost_over_motivation:
-                try:
-                    keys.append((plan.max_cost() + deltas.max_cost_delta) /
-                                (plan.total_motivation() + deltas.total_motivation_delta))
-                except ZeroDivisionError:
-                    if (plan.max_cost() + deltas.max_cost_delta) < 0:
-                        keys.append(float('-inf'))
-                    elif (plan.max_cost() + deltas.max_cost_delta) > 0:
-                        keys.append(float('inf'))
-                    else:
-                        keys.append(float('nan'))
-            elif token == PlanComparisonStrategyToken.motivation:
-                keys.append(-(plan.total_motivation() + deltas.total_motivation_delta))
-            elif token == PlanComparisonStrategyToken.min_cost:
-                keys.append(plan.min_cost() + deltas.min_cost_delta)
-            elif token == PlanComparisonStrategyToken.estimated_cost:
-                keys.append(plan.estimated_cost() + deltas.estimated_cost_delta)
-            elif token == PlanComparisonStrategyToken.max_cost:
-                keys.append(plan.max_cost() + deltas.max_cost_delta)
-            elif token == PlanComparisonStrategyToken.satisfied_percentage_average_asc:
-                keys.append(plan.average_satisfied_percentage(deltas))
-            elif token == PlanComparisonStrategyToken.satisfied_percentage_median_asc:
-                keys.append(plan.median_satisfied_percentage(deltas))
-            elif token == PlanComparisonStrategyToken.satisfied_percentage_average_des:
-                keys.append(-plan.average_satisfied_percentage(deltas))
-            elif token == PlanComparisonStrategyToken.satisfied_percentage_median_des:
-                keys.append(-plan.median_satisfied_percentage(deltas))
-            elif token == PlanComparisonStrategyToken.tasks_fully_satisfied_percentage_asc:
-                keys.append(plan.tasks_fully_satisfied_percentage(deltas))
-            elif token == PlanComparisonStrategyToken.tasks_fully_satisfied_percentage_des:
-                keys.append(-plan.tasks_fully_satisfied_percentage(deltas))
-            elif token == PlanComparisonStrategyToken.concrete_action_percentage_asc:
-                keys.append(plan.concrete_action_percentage(deltas))
-            elif token == PlanComparisonStrategyToken.concrete_action_percentage_des:
-                keys.append(-plan.concrete_action_percentage(deltas))
+                        summary_dict[token] = (plan.max_cost(preferred_type=self.preferred_type) +
+                                               Fraction(deltas.max_cost_delta))
+                else:
+                    summary_dict[token] = (plan.max_cost(preferred_type=self.preferred_type) +
+                                           deltas.max_cost_delta)
+            elif token == PlanValueToken.satisfied_percentage_median:
+                summary_dict[token] = plan.satisfied_percentage_median(deltas, preferred_type=self.preferred_type)
+            elif token == PlanValueToken.satisfied_percentage_average:
+                summary_dict[token] = plan.satisfied_percentage_average(deltas, preferred_type=self.preferred_type)
+            elif token == PlanValueToken.concrete_action_percentage:
+                if self.preferred_type is not None and (isinstance(self.preferred_type, float) or
+                                                        issubclass(self.preferred_type, float) or
+                                                        self.preferred_type is float):
+                    summary_dict[token] = float(plan.concrete_action_percentage(deltas))
+                else:
+                    summary_dict[token] = plan.concrete_action_percentage(deltas)
+            elif token == PlanValueToken.tasks_fully_satisfied_percentage:
+                if self.preferred_type is not None and (isinstance(self.preferred_type, float) or
+                                                        issubclass(self.preferred_type, float) or
+                                                        self.preferred_type is float):
+                    summary_dict[token] = float(plan.tasks_fully_satisfied_percentage(deltas))
+                else:
+                    summary_dict[token] = plan.tasks_fully_satisfied_percentage(deltas)
+        keys = self._generate_standard_keys(summary_dict)
         # to guarantee a total ordering
         keys.append(str(plan.uid))
         keys.append(id(plan))

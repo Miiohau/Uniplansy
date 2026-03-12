@@ -1,29 +1,35 @@
 #TODO: (after upgrading to python 3.12) uncomment @override Decorators
-#TODO: (after updating to python 3.14 (in which Annotations are lazily evaluated by default)) remove "from __future__ import annotations"
+#TODO: (after updating to python 3.14 (in which Annotations are lazily evaluated by default))
+# remove "from __future__ import annotations"
 from __future__ import annotations
 
 import copy
 import statistics
 from dataclasses import dataclass, field, FrozenInstanceError
-from typing import Optional, List, Self, Any, TypeAlias
+from fractions import Fraction
+from typing import Optional, List, Self, Any
 
 from immutabledict import immutabledict
 
+from uniplansy.plans.constraints import Constraint
 from uniplansy.tasks.task_filter import TaskFilter
 from uniplansy.tasks.tasks import Task, TaskDescription
 from uniplansy.util.FreezableObject import FreezableObject
-from uniplansy.util.has_uid import HasUID, HasOptionalUID, HasRequiredUID
+from uniplansy.util.has_uid import HasOptionalUID, HasRequiredUID
 from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError, id_registry_registry
 
 
 @dataclass
 class PlanGraphNode(FreezableObject, HasRequiredUID):
+    """TODO: Docstring for PlanGraphNode.
+
+    """
     uid: str
     node_id_context: Optional[IDRegistry[PlanGraphNode]] = field(default=None, init=False)
     children: set[PlanGraphNode] = field(default_factory=set, kw_only=True, compare=False)
     parents: set[PlanGraphNode] = field(default_factory=set, kw_only=True, compare=False)
-    frozen_children:Optional[frozenset[PlanGraphNode]] = field(default=None, init=False, compare=False)
-    frozen_parents:Optional[frozenset[PlanGraphNode]] = field(default=None, init=False, compare=False)
+    frozen_children: Optional[frozenset[PlanGraphNode]] = field(default=None, init=False, compare=False)
+    frozen_parents: Optional[frozenset[PlanGraphNode]] = field(default=None, init=False, compare=False)
 
     # @override
     def __getattribute__(self, name):
@@ -46,8 +52,11 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
         self.frozen_children = None
         self.frozen_parents = None
 
-    def is_compatible_with(self,other:PlanGraphNode) -> bool:
-        """return true if PlanGraphNode is compatible with other"""
+    def is_compatible_with(self, other: PlanGraphNode) -> bool:
+        """return true if PlanGraphNode is compatible with other
+
+        :param other: the other PlanGraphNode
+        """
         return self.could_be_equal(other)
 
     def set_matching_deep_copy(self,other:Self,memo):
@@ -160,119 +169,269 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
 
 @dataclass(frozen=True)
 class PlanDeltas:
-    total_motivation_delta: Optional[float] = None
-    min_cost_delta: Optional[float] = None
-    max_cost_delta: Optional[float] = None
-    estimated_cost_delta: Optional[float] = None
-    unsatisfied_tasks_delta: Optional[int] = None
-    leaf_tasks_delta: Optional[int] = None
-    satisfied_percentage_deltas: immutabledict[str, float] = immutabledict({})
+    """a data class to store deltas to the summary statistics of a Plan"""
+    total_motivation_delta: float | Fraction = 0
+    min_cost_delta: float | Fraction = 0
+    max_cost_delta: float | Fraction = 0
+    estimated_cost_delta: float | Fraction = 0
+    unsatisfied_tasks_delta: int = 0
+    leaf_tasks_delta: int = 0
+    satisfied_percentage_deltas: immutabledict[str, float | Fraction] = immutabledict({})
+    added_childless_decomposer_node_count: int = 0
 
 # TODO: add the concept of constraints that have to remain true for the Plan to remain valid
-@dataclass(init=True,repr=True)
-class Plan(FreezableObject,HasOptionalUID):
-    node_id_context:IDRegistry[PlanGraphNode]
+@dataclass(init=True, repr=True)
+class Plan(FreezableObject, HasOptionalUID):
+    """TODO:docstring"""
+    node_id_context: IDRegistry[PlanGraphNode]
     task_description_id_context: IDRegistry[TaskDescription]
     uid: Optional[str] = None
-    tasks_by_UID:dict[str,Task] = field(default_factory=dict, init=False)
-    nodes_by_UID:dict[str,PlanGraphNode] = field(default_factory=dict, init=False)
-    _cached_total_motivation:Optional[float] = field(default=None, init=False, compare=False)
-    _cached_min_cost:Optional[float] = field(default=None, init=False, compare=False)
-    _cached_max_cost:Optional[float] = field(default=None, init=False, compare=False)
-    _cached_average_satisfied_percentage:Optional[float] = field(default=None, init=False, compare=False)
-    _cached_median_satisfied_percentage:Optional[float] = field(default=None, init=False, compare=False)
-    _cached_tasks_fully_satisfied_percentage:Optional[float] = field(default=None, init=False, compare=False)
-    _cached_concrete_action_percentage:Optional[float] = field(default=None, init=False, compare=False)
-    _cached_estimated_cost:Optional[float] = field(default=None, init=False, compare=False)
-    _cached_unsatisfied_tasks:Optional[list[Task]] = field(default=None, init=False, compare=False)
-    _cached_leaf_tasks:Optional[list[Task]] = field(default=None, init=False, compare=False)
-    _cached_at_least_one_unsatisfied_task:Optional[bool] = field(default=None, init=False, compare=False)
-    _cached_at_least_one_concrete_action:Optional[bool] = field(default=None, init=False, compare=False)
+    tasks_by_UID: dict[str, Task] = field(default_factory=dict, init=False)
+    nodes_by_UID: dict[str, PlanGraphNode] = field(default_factory=dict, init=False)
+    constraints: List[Constraint] = field(default_factory=list, init=False)
+    _cached_total_motivation: Optional[float| Fraction] = field(default=None, init=False, compare=False)
+    _cached_min_cost: Optional[float | Fraction] = field(default=None, init=False, compare=False)
+    _cached_max_cost: Optional[float | Fraction] = field(default=None, init=False, compare=False)
+    _cached_average_satisfied_percentage: Optional[float | Fraction] = field(default=None,
+                                                                             init=False,
+                                                                             compare=False)
+    _cached_median_satisfied_percentage: Optional[float | Fraction] = field(default=None,
+                                                                            init=False,
+                                                                            compare=False)
+    _cached_tasks_fully_satisfied_percentage: Optional[Fraction] = field(default=None, init=False, compare=False)
+    _cached_concrete_action_percentage: Optional[Fraction] = field(default=None, init=False, compare=False)
+    _cached_estimated_cost: Optional[float | Fraction] = field(default=None, init=False, compare=False)
+    _cached_unsatisfied_tasks: Optional[list[Task]] = field(default=None, init=False, compare=False)
+    _cached_leaf_tasks: Optional[list[Task]] = field(default=None, init=False, compare=False)
+    _cached_at_least_one_unsatisfied_task: Optional[bool] = field(default=None, init=False, compare=False)
+    _cached_at_least_one_concrete_action: Optional[bool] = field(default=None, init=False, compare=False)
 
-    def valid(self):
-        #TODO:implement
-        pass
+    def valid(self) -> bool:
+        """ return True if plan is valid, False otherwise
 
-    def total_motivation(self) -> float:
-        """return the total motivation of the plan"""
+        :return: True if plan is valid, False otherwise
+        """
+        for cur_constraint in self.constraints:
+            if not cur_constraint.satisfied(self):
+                return False
+        return True
+
+    def _summed_task_summary(self,
+                             task_attribute: str,
+                             preferred_type: Optional[float | Fraction | type[float | Fraction]] = None,
+                             ):
+        if preferred_type is None:
+            float_votes: int = 0
+            fraction_votes: int = 0
+            for cur_task in self.tasks_by_UID.values():
+                if isinstance(cur_task.motivation, float):
+                    float_votes += 1
+                elif isinstance(cur_task.motivation, Fraction):
+                    fraction_votes += 1
+            if fraction_votes >= float_votes:
+                preferred_type = Fraction
+            else:
+                preferred_type = float
+        if isinstance(preferred_type, float) or issubclass(preferred_type, float) or preferred_type is float:
+            total: float = 0
+            for cur_task in self.tasks_by_UID.values():
+                total += (float(cur_task.getattr(task_attribute)) * (
+                        float(1) - float(cur_task.get_clamped_satisfied_percentage(0, 1))
+                ))
+            return total
+        else:
+            total: Fraction = Fraction()
+            for cur_task in self.tasks_by_UID.values():
+                total += (Fraction(cur_task.getattr(task_attribute)) * (
+                        Fraction(1) - Fraction(cur_task.get_clamped_satisfied_percentage(0, 1))
+                ))
+            return total
+
+    def total_motivation(self,
+                         preferred_type: Optional[float | Fraction | type[float | Fraction]] = None
+                         ) -> float | Fraction:
+        """return the total motivation of the plan
+
+        :param preferred_type: the callers preferred return type"""
         if self.frozen and (self._cached_total_motivation is not None):
-            return self._cached_total_motivation
-        total:float = 0
-        for cur_task in self.tasks_by_UID.values():
-            total += (cur_task.motivation * (1-cur_task.get_clamped_satisfied_percentage(0,1)))
+            if preferred_type is not None:
+                if isinstance(preferred_type, float) or issubclass(preferred_type, float) or preferred_type is float:
+                    return float(self._cached_total_motivation)
+                else:
+                    return Fraction(self._cached_total_motivation)
+            else:
+                return self._cached_total_motivation
+        total: float | Fraction = self._summed_task_summary("motivation", preferred_type)
         if self.frozen:
             self._cached_total_motivation = total
         return total
 
-    def min_cost(self)  -> float:
-        """return the minimum cost of the plan"""
+    def min_cost(self,
+                 preferred_type: Optional[float | Fraction | type[float | Fraction]] = None
+                 ) -> float | Fraction:
+        """return the minimum cost of the plan
+
+        :param preferred_type: the callers preferred return type"""
         if self.frozen and (self._cached_min_cost is not None):
-            return self._cached_min_cost
-        total: float = 0
-        for cur_task in self.tasks_by_UID.values():
-            total += (cur_task.min_cost * (1 - cur_task.get_clamped_satisfied_percentage(0, 1)))
+            if preferred_type is not None:
+                if isinstance(preferred_type, float) or issubclass(preferred_type, float) or preferred_type is float:
+                    return float(self._cached_min_cost)
+                else:
+                    return Fraction(self._cached_min_cost)
+            else:
+                return self._cached_min_cost
+        total: float | Fraction = self._summed_task_summary("min_cost", preferred_type)
         if self.frozen:
             self._cached_min_cost = total
         return total
 
-    def estimated_cost(self) -> float:
-        """return the estimated cost of the plan"""
+    def estimated_cost(self,
+                       preferred_type: Optional[float | Fraction | type[float | Fraction]] = None
+                       ) -> float | Fraction:
+        """return the estimated cost of the plan
+
+        :param preferred_type: the callers preferred return type"""
         if self.frozen and (self._cached_estimated_cost is not None):
-            return self._cached_estimated_cost
-        total: float = 0
-        for cur_task in self.tasks_by_UID.values():
-            total += (cur_task.estimated_cost * (1 - cur_task.get_clamped_satisfied_percentage(0, 1)))
+            if preferred_type is not None:
+                if isinstance(preferred_type, float) or issubclass(preferred_type, float) or preferred_type is float:
+                    return float(self._cached_estimated_cost)
+                else:
+                    return Fraction(self._cached_estimated_cost)
+            else:
+                return self._cached_estimated_cost
+        total: float | Fraction = self._summed_task_summary("estimated_cost", preferred_type)
         if self.frozen:
             self._cached_estimated_cost = total
         return total
 
-    def max_cost(self) -> float:
-        """return the maximum cost of the plan"""
+    def max_cost(self,
+                 preferred_type: Optional[float | Fraction | type[float | Fraction]] = None
+                 ) -> float | Fraction:
+        """return the maximum cost of the plan
+
+        :param preferred_type: the callers preferred return type"""
         if self.frozen and (self._cached_max_cost is not None):
-            return self._cached_max_cost
-        total: float = 0
-        for cur_task in self.tasks_by_UID.values():
-            total += (cur_task.estimated_cost * (1 - cur_task.get_clamped_satisfied_percentage(0, 1)))
+            if preferred_type is not None:
+                if isinstance(preferred_type, float) or issubclass(preferred_type, float) or preferred_type is float:
+                    return float(self._cached_max_cost)
+                else:
+                    return Fraction(self._cached_max_cost)
+            else:
+                return self._cached_max_cost
+        total: float | Fraction = self._summed_task_summary("max_cost", preferred_type)
         if self.frozen:
             self._cached_max_cost = total
         return total
 
-    def average_satisfied_percentage(self, deltas: Optional[PlanDeltas] = None) -> float:
+    def average_satisfied_percentage(self,
+                                     deltas: Optional[PlanDeltas] = None,
+                                     preferred_type: Optional[float | Fraction | type[float | Fraction]] = None,
+                                     ) -> float | Fraction:
         """return the average satisfied percentage of the tasks in the plan
 
-        :param deltas: TODO:Finish doc"""
+        :param deltas: the PlanDeltas to apply before checking
+        :param preferred_type: the callers preferred return type"""
         if self.frozen and (self._cached_average_satisfied_percentage is not None) and deltas is None:
-            return self._cached_average_satisfied_percentage
-        total: float = 0
-        for cur_task in self.tasks_by_UID.values():
-            if deltas is None:
-                total += cur_task.satisfied_percentage
+            if preferred_type is not None:
+                if isinstance(preferred_type, float) or issubclass(preferred_type, float) or preferred_type is float:
+                    return float(self._cached_average_satisfied_percentage)
+                else:
+                    return Fraction(self._cached_average_satisfied_percentage)
             else:
-                total += cur_task.satisfied_percentage + deltas.satisfied_percentage_deltas.get(cur_task.uid, 0)
-        r_value: float = total / len(self.tasks_by_UID)
-        if self.frozen and deltas is None:
-            self._cached_average_satisfied_percentage = r_value
-        return r_value
+                return self._cached_average_satisfied_percentage
+        if preferred_type is None:
+            float_votes: int = 0
+            fraction_votes: int = 0
+            for cur_task in self.tasks_by_UID.values():
+                if isinstance(cur_task.motivation, float):
+                    float_votes += 1
+                elif isinstance(cur_task.motivation, Fraction):
+                    fraction_votes += 1
+            if fraction_votes >= float_votes:
+                preferred_type = Fraction
+            else:
+                preferred_type = float
+        if isinstance(preferred_type, float) or issubclass(preferred_type, float) or preferred_type is float:
+            total: float = 0
+            for cur_task in self.tasks_by_UID.values():
+                if deltas is None:
+                    total += float(cur_task.satisfied_percentage)
+                else:
+                    total += (float(cur_task.satisfied_percentage) +
+                              float(deltas.satisfied_percentage_deltas.get(cur_task.uid, 0)))
+            total_tasks: int = len(self.tasks_by_UID)
+            if deltas is not None:
+                for key, value in deltas.satisfied_percentage_deltas.items():
+                    if not (key in self.nodes_by_UID.keys()):
+                        total_tasks += 1
+                        total += float(value)
+            r_value: float = total / total_tasks
+            if self.frozen and deltas is None:
+                self._cached_average_satisfied_percentage = r_value
+            return r_value
+        else:
+            total: Fraction = Fraction()
+            for cur_task in self.tasks_by_UID.values():
+                if deltas is None:
+                    total += Fraction(cur_task.satisfied_percentage)
+                else:
+                    total += (Fraction(cur_task.satisfied_percentage) +
+                              Fraction(deltas.satisfied_percentage_deltas.get(cur_task.uid, 0)))
+            total_tasks: int = len(self.tasks_by_UID)
+            if deltas is not None:
+                for key, value in deltas.satisfied_percentage_deltas.items():
+                    if not (key in self.nodes_by_UID.keys()):
+                        total_tasks += 1
+                        total += Fraction(value)
+            r_value: Fraction = total / total_tasks
+            if self.frozen and deltas is None:
+                self._cached_average_satisfied_percentage = r_value
+            return r_value
 
-    def median_satisfied_percentage(self, deltas: Optional[PlanDeltas] = None) -> float:
+    def median_satisfied_percentage(self,
+                                    deltas: Optional[PlanDeltas] = None,
+                                    preferred_type: Optional[float | Fraction | type[float | Fraction]] = None,
+                                    ) -> float | Fraction:
         """return the median satisfied percentage of the plan
 
-        :param deltas: TODO:Finish doc"""
+        :param deltas: the PlanDeltas to apply before checking
+        :param preferred_type: the callers preferred return type"""
         if self.frozen and (self._cached_median_satisfied_percentage is not None) and deltas is None:
-            return self._cached_median_satisfied_percentage
-        satisfied_percentage_values: list[float] = []
+            if preferred_type is not None:
+                if isinstance(preferred_type, float) or issubclass(preferred_type, float) or preferred_type is float:
+                    return float(self._cached_median_satisfied_percentage)
+                else:
+                    return Fraction(self._cached_median_satisfied_percentage)
+            else:
+                return self._cached_median_satisfied_percentage
+        satisfied_percentage_values: list[float | Fraction] = []
         for cur_task in self.tasks_by_UID.values():
             if deltas is None:
                 satisfied_percentage_values.append(cur_task.satisfied_percentage)
             else:
                 satisfied_percentage_values.append(cur_task.satisfied_percentage +
                                                    deltas.satisfied_percentage_deltas.get(cur_task.uid, 0))
-        r_value: float = statistics.median(satisfied_percentage_values)
+        if deltas is not None:
+            for key, value in deltas.satisfied_percentage_deltas.items():
+                if not (key in self.nodes_by_UID.keys()):
+                    satisfied_percentage_values.append(value)
+        r_value: float | Fraction = statistics.median(satisfied_percentage_values)
         if self.frozen and deltas is None:
             self._cached_median_satisfied_percentage = r_value
-        return r_value
+        if preferred_type is not None:
+            if isinstance(preferred_type, float) or issubclass(preferred_type, float) or preferred_type is float:
+                return float(r_value)
+            else:
+                return Fraction(r_value)
+        else:
+            return r_value
 
-    def tasks_fully_satisfied_percentage(self, deltas: Optional[PlanDeltas] = None)-> float:
+    def tasks_fully_satisfied_percentage(self, deltas: Optional[PlanDeltas] = None) -> Fraction:
+        """returns the percentage of tasks that are fully satisfied
+
+        :param deltas: the PlanDeltas to apply before checking
+        :return: the percentage of tasks that are fully satisfied
+        """
         if self.frozen and (self._cached_tasks_fully_satisfied_percentage is not None) and deltas is None:
             return self._cached_tasks_fully_satisfied_percentage
         tasks_satisfied_count: int = 0
@@ -285,12 +444,25 @@ class Plan(FreezableObject,HasOptionalUID):
                                         deltas.satisfied_percentage_deltas.get(cur_task.uid, 0))
             if satisfied_percentage >= 1:
                 tasks_satisfied_count += 1
-        r_value: float = tasks_satisfied_count / len(self.tasks_by_UID)
+        total_tasks: int = len(self.tasks_by_UID)
+        if deltas is not None:
+            for key, value in deltas.satisfied_percentage_deltas.items():
+                if not (key in self.nodes_by_UID.keys()):
+                    total_tasks += 1
+                    if value >= 1:
+                        tasks_satisfied_count += 1
+        r_value: Fraction = Fraction(tasks_satisfied_count, total_tasks)
         if self.frozen and deltas is None:
             self._cached_tasks_fully_satisfied_percentage = r_value
         return r_value
 
-    def concrete_action_percentage(self, deltas: Optional[PlanDeltas] = None)-> float:
+    def concrete_action_percentage(self, deltas: Optional[PlanDeltas] = None) -> Fraction:
+        """return the percentage of leaf nodes that are concrete actions
+
+        a concrete action is a fully satisfied task that is also a leaf or a leaf decomposer node
+        :param deltas: the PlanDeltas to apply before checking
+        :return: the percentage of leaf nodes that are concrete actions
+        """
         if self.frozen and (self._cached_concrete_action_percentage is not None) and deltas is None:
             return self._cached_concrete_action_percentage
         concrete_action_count: int = 0
@@ -309,11 +481,18 @@ class Plan(FreezableObject,HasOptionalUID):
                         concrete_action_count += 1
                 else:
                     concrete_action_count += 1
-        r_value: float = concrete_action_count/ total_leaf_nodes
+        if deltas is not None:
+            total_leaf_nodes += deltas.added_childless_decomposer_node_count
+            concrete_action_count += deltas.added_childless_decomposer_node_count
+            for key, value in deltas.satisfied_percentage_deltas.items():
+                if not (key in self.nodes_by_UID.keys()):
+                    total_leaf_nodes += 1
+                    if value >= 1:
+                        concrete_action_count += 1
+        r_value: Fraction = Fraction(concrete_action_count, total_leaf_nodes)
         if self.frozen and deltas is None:
             self._cached_concrete_action_percentage = r_value
         return r_value
-
 
     def unsatisfied_tasks(self) -> List[Task]:
         """return the unsatisfied tasks"""
@@ -328,7 +507,9 @@ class Plan(FreezableObject,HasOptionalUID):
         return r_values
 
     def leaf_tasks(self) -> List[Task]:
-        """return the leaf tasks"""
+        """return the leaf tasks
+
+        leaf tasks are tasks with no children"""
         if self.frozen and (self._cached_leaf_tasks is not None):
             return self._cached_leaf_tasks
         r_values: list[Task] = []
@@ -340,6 +521,11 @@ class Plan(FreezableObject,HasOptionalUID):
         return r_values
 
     def at_least_one_unsatisfied_task(self, deltas: Optional[PlanDeltas] = None)-> bool:
+        """ returns true if there is at least one unsatisfied task
+
+        :param deltas: the PlanDeltas to apply before checking
+        :return: true if there is at least one unsatisfied task, false otherwise
+        """
         if self.frozen and deltas is None:
             if self._cached_at_least_one_unsatisfied_task is not None:
                 return self._cached_at_least_one_unsatisfied_task
@@ -357,15 +543,26 @@ class Plan(FreezableObject,HasOptionalUID):
                 satisfied_percentage = (cur_task.satisfied_percentage +
                                         deltas.satisfied_percentage_deltas.get(cur_task.uid, 0))
             if satisfied_percentage <= 1:
-                if self.frozen:
+                if self.frozen and (deltas is None):
                     self._cached_at_least_one_unsatisfied_task = True
                 return True
-        if self.frozen:
+        if deltas is not None:
+            for key, value in deltas.satisfied_percentage_deltas.items():
+                if not (key in self.nodes_by_UID.keys()):
+                    if value <= 1:
+                        return True
+        if self.frozen and (deltas is None):
             self._cached_at_least_one_unsatisfied_task = False
         return False
 
     def at_least_one_concrete_action(self, deltas: Optional[PlanDeltas] = None)-> bool:
-        if self.frozen and deltas is None and self._cached_at_least_one_concrete_action is not None:
+        """return true if there is at least concrete action in the plan
+
+        a concrete action is a fully satisfied task that is also a leaf or a leaf decomposer node.
+        :param deltas: the PlanDeltas to apply before checking
+        :return: true if there is at least concrete action in the plan, false otherwise
+        """
+        if self.frozen and (deltas is None) and (self._cached_at_least_one_concrete_action is not None):
             return self._cached_at_least_one_concrete_action
         for cur_node in self.nodes_by_UID.values():
             is_cur_node_concrete: bool = False
@@ -382,19 +579,38 @@ class Plan(FreezableObject,HasOptionalUID):
                 else:
                     is_cur_node_concrete = True
             if is_cur_node_concrete:
-                if self.frozen:
+                if self.frozen and deltas is None:
                     self._cached_at_least_one_concrete_action = True
                 return True
-        if self.frozen:
+        if deltas is not None:
+            if deltas.added_childless_decomposer_node_count > 0:
+                return True
+            for key, value in deltas.satisfied_percentage_deltas.items():
+                if not (key in self.nodes_by_UID.keys()):
+                    if value >= 1:
+                        return True
+        if self.frozen and deltas is None:
             self._cached_at_least_one_concrete_action = False
         return False
 
-    def filter_tasks(self, task_filter : TaskFilter) -> List[Task]:
-        """filter tasks based on a TaskFilter"""
+    def filter_tasks(self, task_filter: TaskFilter) -> List[Task]:
+        """filter tasks based on a TaskFilter
+
+        :param task_filter: the TaskFilter to use"""
         return list(task_filter.filter_tasks_list(self.tasks_by_UID.values()))
 
+    def add_constraint(self, new_constraint: Constraint):
+        """add a new constraint to the plan
+
+        :param new_constraint: the constraint to add.
+        """
+        self.constraints.append(new_constraint)
+
     def add_node(self, new_node: PlanGraphNode) -> bool:
-        """add a task to this plan. Returns true if the node wasn't already in the plan. Any override of this method should call super."""
+        """add a task to this plan. Returns true if the node wasn't already in the plan.
+        Any override of this method should call super.
+
+        :param new_node: the node to add."""
         if self.frozen:
             raise FrozenInstanceError()
         if not self.node_id_context.contains(new_node.uid):
@@ -415,7 +631,9 @@ class Plan(FreezableObject,HasOptionalUID):
         return False
 
     def _add_node_recurse(self, new_node: PlanGraphNode):
-        """add a task to this plan"""
+        """add a task to this plan
+
+        :param new_node: the new task to add."""
         for cur_parent in new_node.parents:
             if not new_node in cur_parent.children:
                 cur_parent.children.add(new_node)
@@ -451,8 +669,9 @@ class Plan(FreezableObject,HasOptionalUID):
         self._cached_average_satisfied_percentage = None
         self._cached_median_satisfied_percentage = None
 
-    def set_matching_deep_copy(self,other:Self,memo):
-        super().set_matching_deep_copy(other,memo)
+    # @override
+    def set_matching_deep_copy(self, other: Self, memo):
+        super().set_matching_deep_copy(other, memo)
         other.nodes_by_UID = copy.deepcopy(self.nodes_by_UID, memo)
         other.tasks_by_UID = copy.deepcopy(self.tasks_by_UID, memo)
         other._cached_leaf_tasks = copy.deepcopy(self._cached_leaf_tasks, memo)
@@ -466,8 +685,9 @@ class Plan(FreezableObject,HasOptionalUID):
 
     # @override
     def __deepcopy__(self, memo):
-        new_copy:Self = type(self)(node_id_context=self.node_id_context,task_description_id_context=self.task_description_id_context)
-        self.set_matching_deep_copy(new_copy,memo)
+        new_copy: Self = type(self)(node_id_context=self.node_id_context,
+                                    task_description_id_context=self.task_description_id_context)
+        self.set_matching_deep_copy(new_copy, memo)
         return new_copy
 
     def __getstate__(self):

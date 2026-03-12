@@ -1,5 +1,7 @@
 #TODO: (after upgrading to python 3.12) uncomment @override Decorators
 from dataclasses import dataclass, field
+from decimal import Decimal
+from fractions import Fraction
 from typing import Any, Self, Optional
 
 from immutabledict import immutabledict
@@ -14,7 +16,7 @@ class TaskDescription(HasRequiredUID):
     """TODO: Docstring for TaskDescription."""
     uid: str
     human_understandable_string: str
-    context:immutabledict[str, Any] = immutabledict({})
+    context: immutabledict[str, Any] = immutabledict({})
 
     # @override
     def __str__(self) -> str:
@@ -56,20 +58,28 @@ class Task(PlanGraphNode):
     """TODO: Docstring for Task."""
     description:TaskDescription
     task_description_id_context: Optional[IDRegistry[TaskDescription]] = field(default=None, init=False)
-    motivation:float = 0.0
-    estimated_cost: float = 0.0
-    min_cost:float = 0.0
-    max_cost:float = float("inf")
-    satisfied_percentage:float = 0.0
+    motivation: float | Fraction = 0.0
+    estimated_cost: float | Fraction = 0.0
+    min_cost: float | Fraction = 0.0
+    max_cost: float | Fraction = float("inf")
+    satisfied_percentage: float | Fraction = 0.0
 
-    def get_clamped_satisfied_percentage(self, min_value: float, max_value: float):
+    def get_clamped_satisfied_percentage(self,
+                                         min_value: float | Fraction,
+                                         max_value: float | Fraction) -> float | Fraction:
         """TODO: Docstring for get_clamped_satisfied_percentage.
 
         :param min_value:
         :param max_value:
         :return:
         """
-        return min(max(self.satisfied_percentage,min_value), max_value)
+        if isinstance(self.satisfied_percentage, Fraction):
+            min_value = Fraction(min_value)
+            max_value = Fraction(max_value)
+        elif isinstance(self.satisfied_percentage, float):
+            min_value = float(min_value)
+            max_value = float(max_value)
+        return min(max(self.satisfied_percentage, min_value), max_value)
 
     # @override
     def is_compatible_with(self, other: PlanGraphNode) -> bool:
