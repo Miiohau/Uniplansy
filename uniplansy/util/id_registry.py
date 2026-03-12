@@ -38,15 +38,19 @@ Registered_Object = TypeVar('Registered_Object')
 class IDRegistry(Generic[Registered_Object],HasRequiredUID):
     """a registry of objects with unique IDs.
 
-    :method register: registers an object under a unique ID
-    :method fetch: fetch an object from the registry
-    :method retire_referred_object: retires an object from the registry
-    :method retire_self: retires this registry and all contained objects
-    :method contains: checks whether uid is in registry
+    register(method): registers an object under a unique ID
+    fetch(method): fetch an object from the registry
+    retire_referred_object(method): retires an object from the registry
+    retire_self(method): retires this registry and all contained objects
+    contains(method): checks whether uid is in registry
+    reregister(method): reregister an object under its unique ID. In practice a looser register that allows replacement
+    if that UID is currently None (likely because it was retired)
+    replace(method):replaces the object registered a unique ID. Should rarely be needed.
+    The point of an IDRegistry is to be a stable lookup table for objects.
     """
     uid: str = field(default_factory=default_guid_supplier.create_guid)
-    _registry:dict[str, Registered_Object] = field(default_factory=dict[str, Optional[Registered_Object]], init=False)
-    guid_supplier:Optional[GUIDSupplier] = None
+    _registry: dict[str, Registered_Object] = field(default_factory=dict[str, Optional[Registered_Object]], init=False)
+    guid_supplier: Optional[GUIDSupplier] = None
 
     def __eq__(self, other):
         return self is other
@@ -57,9 +61,31 @@ class IDRegistry(Generic[Registered_Object],HasRequiredUID):
         :param item: the object to be registered
         :throws RegistryKeyNotFoundError: if uid is already registered
         """
-        if (uid in self._registry) and (not (item is self._registry[uid])):
+        if (uid in self._registry.keys()) and (not (item is self._registry[uid])):
             raise RegistryKeyAlreadyExistsError()
         self._registry[uid] = item
+
+    def reregister(self, uid: str, item: Registered_Object):
+        """reregister an object under its unique ID
+
+        in practice a looser register that allows replacement if that UID is currently None
+        (likely because it was retired)
+        :param uid: the unique ID to reregister the object under
+        :param item: the object to be reregistered"""
+        if (uid in self._registry.keys()) and (not (item is self._registry[uid])) and (self._registry[uid] is not None):
+            raise RegistryKeyAlreadyExistsError()
+        self._registry[uid] = item
+
+    def replace(self, uid: str, item: Registered_Object) -> Optional[Registered_Object]:
+        """replaces the object registered a unique ID
+
+        should rarely be needed. The point of an IDRegistry is to be a stable lookup table for objects.
+        :param uid: the unique ID to replace the object registered
+        :param item: the object to replace the existing object with
+        :returns: the replaced object"""
+        return_value = self._registry[uid]
+        self._registry[uid] = item
+        return return_value
 
     def contains(self, uid: str) -> bool:
         """check whether uid is in registry

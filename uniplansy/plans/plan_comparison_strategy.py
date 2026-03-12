@@ -25,6 +25,10 @@ class PlanComparisonStrategyToken(Enum):
     satisfied_percentage_average_des = auto()
     satisfied_percentage_median_asc = auto()
     satisfied_percentage_median_des = auto()
+    tasks_fully_satisfied_percentage_asc = auto()
+    tasks_fully_satisfied_percentage_des = auto()
+    concrete_action_percentage_asc = auto()
+    concrete_action_percentage_des = auto()
 
 
 class PlanValueToken(Enum):
@@ -35,6 +39,8 @@ class PlanValueToken(Enum):
     motivation = auto()
     satisfied_percentage_average = auto()
     satisfied_percentage_median = auto()
+    tasks_fully_satisfied_percentage = auto()
+    concrete_action_percentage = auto()
 
 
 # cost ascending motivation descending
@@ -172,6 +178,20 @@ class BasicPlanComparisonStrategy(PlanComparisonStrategy):
                 keys.append(-task.satisfied_percentage)
             elif token == PlanComparisonStrategyToken.satisfied_percentage_median_des:
                 keys.append(-task.satisfied_percentage)
+            elif token == PlanComparisonStrategyToken.tasks_fully_satisfied_percentage_asc:
+                keys.append(task.satisfied_percentage)
+            elif token == PlanComparisonStrategyToken.tasks_fully_satisfied_percentage_des:
+                keys.append(-task.satisfied_percentage)
+            elif token == PlanComparisonStrategyToken.concrete_action_percentage_asc:
+                if len(task.children) > 0:
+                    keys.append(task.satisfied_percentage - 1)
+                else:
+                    keys.append(task.satisfied_percentage)
+            elif token == PlanComparisonStrategyToken.concrete_action_percentage_des:
+                if len(task.children) > 0:
+                    keys.append(1 - task.satisfied_percentage)
+                else:
+                    keys.append(-task.satisfied_percentage)
         # to guarantee a total ordering
         keys.append(task.description.human_understandable_string)
         keys.append(task.description.uid)
@@ -259,6 +279,14 @@ class BasicPlanComparisonStrategy(PlanComparisonStrategy):
                 keys.append(-plan.average_satisfied_percentage())
             elif token == PlanComparisonStrategyToken.satisfied_percentage_median_des:
                 keys.append(-plan.median_satisfied_percentage())
+            elif token == PlanComparisonStrategyToken.tasks_fully_satisfied_percentage_asc:
+                keys.append(plan.tasks_fully_satisfied_percentage())
+            elif token == PlanComparisonStrategyToken.tasks_fully_satisfied_percentage_des:
+                keys.append(-plan.tasks_fully_satisfied_percentage())
+            elif token == PlanComparisonStrategyToken.concrete_action_percentage_asc:
+                keys.append(plan.concrete_action_percentage())
+            elif token == PlanComparisonStrategyToken.concrete_action_percentage_des:
+                keys.append(-plan.concrete_action_percentage())
         # to guarantee a total ordering
         keys.append(id(plan))
         return tuple(keys)
@@ -348,6 +376,14 @@ class BasicPlanComparisonStrategy(PlanComparisonStrategy):
                 keys.append(-plan.average_satisfied_percentage(deltas))
             elif token == PlanComparisonStrategyToken.satisfied_percentage_median_des:
                 keys.append(-plan.median_satisfied_percentage(deltas))
+            elif token == PlanComparisonStrategyToken.tasks_fully_satisfied_percentage_asc:
+                keys.append(plan.tasks_fully_satisfied_percentage(deltas))
+            elif token == PlanComparisonStrategyToken.tasks_fully_satisfied_percentage_des:
+                keys.append(-plan.tasks_fully_satisfied_percentage(deltas))
+            elif token == PlanComparisonStrategyToken.concrete_action_percentage_asc:
+                keys.append(plan.concrete_action_percentage(deltas))
+            elif token == PlanComparisonStrategyToken.concrete_action_percentage_des:
+                keys.append(-plan.concrete_action_percentage(deltas))
         # to guarantee a total ordering
         keys.append(str(plan.uid))
         keys.append(id(plan))
@@ -390,4 +426,12 @@ class BasicPlanComparisonStrategy(PlanComparisonStrategy):
                     self._values_needed.add(PlanValueToken.satisfied_percentage_median)
                 elif cur_token == PlanComparisonStrategyToken.satisfied_percentage_median_des:
                     self._values_needed.add(PlanValueToken.satisfied_percentage_median)
+                elif cur_token == PlanComparisonStrategyToken.tasks_fully_satisfied_percentage_asc:
+                    self._values_needed.add(PlanValueToken.tasks_fully_satisfied_percentage)
+                elif cur_token == PlanComparisonStrategyToken.tasks_fully_satisfied_percentage_des:
+                    self._values_needed.add(PlanValueToken.tasks_fully_satisfied_percentage)
+                elif cur_token == PlanComparisonStrategyToken.concrete_action_percentage_asc:
+                    self._values_needed.add(PlanValueToken.concrete_action_percentage)
+                elif cur_token == PlanComparisonStrategyToken.concrete_action_percentage_des:
+                    self._values_needed.add(PlanValueToken.concrete_action_percentage)
         return self._values_needed

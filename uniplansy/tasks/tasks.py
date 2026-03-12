@@ -11,8 +11,9 @@ from uniplansy.util.id_registry import IDRegistry, id_registry_registry
 
 @dataclass(frozen=True, repr=True)
 class TaskDescription(HasRequiredUID):
-    uid:str
-    human_understandable_string:str
+    """TODO: Docstring for TaskDescription."""
+    uid: str
+    human_understandable_string: str
     context:immutabledict[str, Any] = immutabledict({})
 
     # @override
@@ -24,8 +25,15 @@ class TaskDescription(HasRequiredUID):
         if isinstance(other, TaskDescription):
             if self.uid == other.uid:
                 if __debug__ :
-                    assert self.human_understandable_string == other.human_understandable_string, f"by guid \"{self.human_understandable_string}\" {self.uid} should equal \"{other.human_understandable_string}\" {self.uid} but they have different human understandable strings"
-                    assert self.context == other.context, f"by guid \"{self.human_understandable_string}\" \"{self.uid}\" should equal \"{other.human_understandable_string}\" \"{other.uid}\" but \"{self.human_understandable_string}\" has context {self.context} and \"{other.human_understandable_string}\" has context {other.context}"
+                    assert self.human_understandable_string == other.human_understandable_string, \
+                        (f"by guid \"{self.human_understandable_string}\" {self.uid} "
+                         f"should equal \"{other.human_understandable_string}\" {self.uid} but "
+                         f"they have different human understandable strings")
+                    assert self.context == other.context, \
+                        (f"by guid \"{self.human_understandable_string}\" \"{self.uid}\" should equal "
+                         f"\"{other.human_understandable_string}\" \"{other.uid}\" but "
+                         f"\"{self.human_understandable_string}\" has context {self.context} and "
+                         f"\"{other.human_understandable_string}\" has context {other.context}")
                 return True
             return (self.human_understandable_string == other.human_understandable_string and
                     self.context == other.context)
@@ -45,6 +53,7 @@ class TaskDescription(HasRequiredUID):
 
 @dataclass
 class Task(PlanGraphNode):
+    """TODO: Docstring for Task."""
     description:TaskDescription
     task_description_id_context: Optional[IDRegistry[TaskDescription]] = field(default=None, init=False)
     motivation:float = 0.0
@@ -53,11 +62,17 @@ class Task(PlanGraphNode):
     max_cost:float = float("inf")
     satisfied_percentage:float = 0.0
 
-    def get_clamped_satisfied_percentage(self,min_value:float,max_value:float):
-        return min(max(self.satisfied_percentage,min_value),max_value)
+    def get_clamped_satisfied_percentage(self, min_value: float, max_value: float):
+        """TODO: Docstring for get_clamped_satisfied_percentage.
+
+        :param min_value:
+        :param max_value:
+        :return:
+        """
+        return min(max(self.satisfied_percentage,min_value), max_value)
 
     # @override
-    def is_compatible_with(self, other:PlanGraphNode)-> bool:
+    def is_compatible_with(self, other: PlanGraphNode) -> bool:
         if isinstance(other, Task):
             return self.description == other.description
         return NotImplemented
@@ -97,7 +112,7 @@ class Task(PlanGraphNode):
         del state['description']
         return state
 
-    # TODO:see if we can find a way to connect unpickled DecomposerNodes to their old notes
+    # TODO:see if we can find a way to connect unpickled Tasks to their old notes
     def __setstate__(self,state):
         super().__setstate__(state)
         self.task_description_id_context = id_registry_registry.fetch(state['task_description_id_context_id'])

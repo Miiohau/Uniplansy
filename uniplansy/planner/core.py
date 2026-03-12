@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 
 from uniplansy.decomposers.core import Decomposer
 from uniplansy.planner.plan_cache_strategy import PlanCacheStrategy
-from uniplansy.planner.plan_selection_strategy import PlanSelectionStrategy
+from uniplansy.planner.plan_selection_strategy import FullPlanSelectionStrategy
 from uniplansy.planner.planning_strategy import PlanningStrategy
 from uniplansy.planner.stopping_strategy import StoppingStrategy
 from uniplansy.plans.plan import Plan, PlanGraphNode
@@ -59,7 +59,7 @@ class Planner:
     def __init__(self,
                  planning_strategy: PlanningStrategy,
                  stopping_strategy: StoppingStrategy,
-                 final_plan_selection_strategy: PlanSelectionStrategy,
+                 final_plan_selection_strategy: FullPlanSelectionStrategy,
                  cache_strategy: PlanCacheStrategy,
                  decomposers:set[Decomposer],
                  plan_uid_supplier:UIDSupplier = default_guid_supplier):

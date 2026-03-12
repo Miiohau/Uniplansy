@@ -60,7 +60,6 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
 
     # @override
     def __deepcopy__(self, memo):
-        # TODO: figure out a way to do this in a type safe way
         new_copy = type(self)(uid=self.uid)
         self.set_matching_deep_copy(new_copy, memo)
         return new_copy
@@ -182,9 +181,13 @@ class Plan(FreezableObject,HasOptionalUID):
     _cached_max_cost:Optional[float] = field(default=None, init=False, compare=False)
     _cached_average_satisfied_percentage:Optional[float] = field(default=None, init=False, compare=False)
     _cached_median_satisfied_percentage:Optional[float] = field(default=None, init=False, compare=False)
+    _cached_tasks_fully_satisfied_percentage:Optional[float] = field(default=None, init=False, compare=False)
+    _cached_concrete_action_percentage:Optional[float] = field(default=None, init=False, compare=False)
     _cached_estimated_cost:Optional[float] = field(default=None, init=False, compare=False)
     _cached_unsatisfied_tasks:Optional[list[Task]] = field(default=None, init=False, compare=False)
     _cached_leaf_tasks:Optional[list[Task]] = field(default=None, init=False, compare=False)
+    _cached_at_least_one_unsatisfied_task:Optional[bool] = field(default=None, init=False, compare=False)
+    _cached_at_least_one_concrete_action:Optional[bool] = field(default=None, init=False, compare=False)
 
     def valid(self):
         #TODO:implement
@@ -245,7 +248,7 @@ class Plan(FreezableObject,HasOptionalUID):
             if deltas is None:
                 total += cur_task.satisfied_percentage
             else:
-                total += cur_task.satisfied_percentage + deltas.satisfied_percentage_deltas[cur_task.uid]
+                total += cur_task.satisfied_percentage + deltas.satisfied_percentage_deltas.get(cur_task.uid, 0)
         r_value: float = total / len(self.tasks_by_UID)
         if self.frozen and deltas is None:
             self._cached_average_satisfied_percentage = r_value
@@ -263,11 +266,54 @@ class Plan(FreezableObject,HasOptionalUID):
                 satisfied_percentage_values.append(cur_task.satisfied_percentage)
             else:
                 satisfied_percentage_values.append(cur_task.satisfied_percentage +
-                                                   deltas.satisfied_percentage_deltas[cur_task.uid])
+                                                   deltas.satisfied_percentage_deltas.get(cur_task.uid, 0))
         r_value: float = statistics.median(satisfied_percentage_values)
         if self.frozen and deltas is None:
             self._cached_median_satisfied_percentage = r_value
         return r_value
+
+    def tasks_fully_satisfied_percentage(self, deltas: Optional[PlanDeltas] = None)-> float:
+        if self.frozen and (self._cached_tasks_fully_satisfied_percentage is not None) and deltas is None:
+            return self._cached_tasks_fully_satisfied_percentage
+        tasks_satisfied_count: int = 0
+        for cur_task in self.tasks_by_UID.values():
+            satisfied_percentage: float
+            if deltas is None:
+                satisfied_percentage = cur_task.satisfied_percentage
+            else:
+                satisfied_percentage = (cur_task.satisfied_percentage +
+                                        deltas.satisfied_percentage_deltas.get(cur_task.uid, 0))
+            if satisfied_percentage >= 1:
+                tasks_satisfied_count += 1
+        r_value: float = tasks_satisfied_count / len(self.tasks_by_UID)
+        if self.frozen and deltas is None:
+            self._cached_tasks_fully_satisfied_percentage = r_value
+        return r_value
+
+    def concrete_action_percentage(self, deltas: Optional[PlanDeltas] = None)-> float:
+        if self.frozen and (self._cached_concrete_action_percentage is not None) and deltas is None:
+            return self._cached_concrete_action_percentage
+        concrete_action_count: int = 0
+        total_leaf_nodes: int = 0
+        for cur_node in self.nodes_by_UID.values():
+            if len(cur_node.children) == 0:
+                total_leaf_nodes += 1
+                if isinstance(cur_node, Task):
+                    satisfied_percentage: float
+                    if deltas is None:
+                        satisfied_percentage = cur_node.satisfied_percentage
+                    else:
+                        satisfied_percentage = (cur_node.satisfied_percentage +
+                                                deltas.satisfied_percentage_deltas.get(cur_node.uid, 0))
+                    if satisfied_percentage >= 1:
+                        concrete_action_count += 1
+                else:
+                    concrete_action_count += 1
+        r_value: float = concrete_action_count/ total_leaf_nodes
+        if self.frozen and deltas is None:
+            self._cached_concrete_action_percentage = r_value
+        return r_value
+
 
     def unsatisfied_tasks(self) -> List[Task]:
         """return the unsatisfied tasks"""
@@ -293,10 +339,59 @@ class Plan(FreezableObject,HasOptionalUID):
             self._cached_leaf_tasks = r_values
         return r_values
 
+    def at_least_one_unsatisfied_task(self, deltas: Optional[PlanDeltas] = None)-> bool:
+        if self.frozen and deltas is None:
+            if self._cached_at_least_one_unsatisfied_task is not None:
+                return self._cached_at_least_one_unsatisfied_task
+            if self._cached_unsatisfied_tasks is not None:
+                if len(self._cached_unsatisfied_tasks) > 0:
+                    self._cached_at_least_one_unsatisfied_task = True
+                else:
+                    self._cached_at_least_one_unsatisfied_task = False
+                return self._cached_at_least_one_unsatisfied_task
+        for cur_task in self.tasks_by_UID.values():
+            satisfied_percentage: float
+            if deltas is None:
+                satisfied_percentage = cur_task.satisfied_percentage
+            else:
+                satisfied_percentage = (cur_task.satisfied_percentage +
+                                        deltas.satisfied_percentage_deltas.get(cur_task.uid, 0))
+            if satisfied_percentage <= 1:
+                if self.frozen:
+                    self._cached_at_least_one_unsatisfied_task = True
+                return True
+        if self.frozen:
+            self._cached_at_least_one_unsatisfied_task = False
+        return False
+
+    def at_least_one_concrete_action(self, deltas: Optional[PlanDeltas] = None)-> bool:
+        if self.frozen and deltas is None and self._cached_at_least_one_concrete_action is not None:
+            return self._cached_at_least_one_concrete_action
+        for cur_node in self.nodes_by_UID.values():
+            is_cur_node_concrete: bool = False
+            if len(cur_node.children) == 0:
+                if isinstance(cur_node, Task):
+                    satisfied_percentage: float
+                    if deltas is None:
+                        satisfied_percentage = cur_node.satisfied_percentage
+                    else:
+                        satisfied_percentage = (cur_node.satisfied_percentage +
+                                                deltas.satisfied_percentage_deltas.get(cur_node.uid, 0))
+                    if satisfied_percentage >= 1:
+                        is_cur_node_concrete = True
+                else:
+                    is_cur_node_concrete = True
+            if is_cur_node_concrete:
+                if self.frozen:
+                    self._cached_at_least_one_concrete_action = True
+                return True
+        if self.frozen:
+            self._cached_at_least_one_concrete_action = False
+        return False
+
     def filter_tasks(self, task_filter : TaskFilter) -> List[Task]:
         """filter tasks based on a TaskFilter"""
         return list(task_filter.filter_tasks_list(self.tasks_by_UID.values()))
-
 
     def add_node(self, new_node: PlanGraphNode) -> bool:
         """add a task to this plan. Returns true if the node wasn't already in the plan. Any override of this method should call super."""

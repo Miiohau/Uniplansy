@@ -16,6 +16,12 @@ from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError
 
 @dataclass
 class DecomposerNode(PlanGraphNode):
+    """a DecomposerNode holds information about how a Decomposer was applied to a plan
+
+    node_decomposer(attribute): the decomposer that was applied to the plan
+    notes(attribute): additional context of how the decomposer was applied to the plan. Mainly used by the Decomposer
+    itself in its convert_to_reasoner_graph method
+    """
     node_decomposer: Decomposer
     notes: immutabledict[str, Any] = immutabledict({})
 
@@ -35,7 +41,7 @@ class DecomposerNode(PlanGraphNode):
 
     # @override
     def __deepcopy__(self, memo):
-        new_copy = type(self)(uid=self.uid, node_decomposer=self.node_decomposer)
+        new_copy = type(self)(uid = self.uid, node_decomposer=self.node_decomposer)
         self.set_matching_deep_copy(new_copy,memo)
         return new_copy
 
@@ -52,10 +58,18 @@ class DecomposerNode(PlanGraphNode):
         del self.__dict__['node_decomposer_id']
 
 # TODO: add the concept of a planning context to applicable, estimate_deltas and decompose_tasks
-class Decomposer(HasRequiredUID,metaclass=ABCMeta):
+# TODO: proof read the doc because this is very important concept for users of the library
+class Decomposer(HasRequiredUID, metaclass=ABCMeta):
+    """knowledge expert that can decompose a plan typically by decomposing Tasks within that plan.
 
+    abstractly a Decomposer represents a course of action
+    applicable(method): returns true if this Decomposer is applicable to the plan
+    estimate_deltas(method): estimates the deltas that will happen if this Decomposer is applied
+    decompose_tasks(method): decompose the tasks in plan
+    convert_to_reasoner_graph(method): convert the decomposed tasks to reasoner graph
+    """
 
-    def __init__(self, uid:str, register_self:bool=True):
+    def __init__(self, uid:str, register_self:bool = True):
         super().__init__()
         self.uid:str = uid
         if register_self:
@@ -65,46 +79,59 @@ class Decomposer(HasRequiredUID,metaclass=ABCMeta):
                 raise RegistryKeyAlreadyExistsError("A decomposer with this uid already exists!") from e
 
     @abstractmethod
-    def applicable(self, plan:Plan) -> bool:
-        """
-        returns true if this Decomposer is applicable to the plan
+    def applicable(self, plan: Plan) -> bool:
+        """returns true if this Decomposer is applicable to the plan
+
+        :param plan: the plan to check applicability on
+        :return: true if this Decomposer is applicable to the plan
         """
         pass
 
     # noinspection PyMethodMayBeStatic
-    def estimate_deltas(self, plan:Plan) -> PlanDeltas:
-        """
-        estimates the deltas that will happen if this Decomposer is applied
+    def estimate_deltas(self, plan: Plan) -> PlanDeltas:
+        """estimates the deltas that will happen if this Decomposer is applied
+
         :param plan: the plan to calculate the deltas for
         :return: the estimated deltas that will happen if this Decomposer is applied to the plan
         """
         return PlanDeltas()
 
     @abstractmethod
-    def decompose_tasks(self, plan:Plan) -> List[Plan]:
-        """decompose the tasks in plan"""
+    def decompose_tasks(self, plan: Plan) -> List[Plan]:
+        """decompose the tasks in plan
+
+        this method returns a list because there may be different ways a decomposer can be applied to the plan.
+        :param plan: the plan to decompose task on
+        :return: a list of plans with one or more tasks decomposed"""
         pass
 
     @abstractmethod
-    def convert_to_reasoner_graph(self, node:DecomposerNode)->ReasonerTemplate:
-        """convert the decomposed tasks to reasoner graph"""
+    def convert_to_reasoner_graph(self, node: DecomposerNode) -> ReasonerTemplate:
+        """convert the decomposed tasks to reasoner graph
+
+        :param node: the DecomposerNode with any notes the Decomposer made at that time
+        :return: the reasoner template that will be used to create the Reasoner that will apply the course of action
+        this Decomposer represents in practice"""
         pass
 
 class Goal(Decomposer, metaclass=ABCMeta):
-    """Goals are special Decomposers that are only applicable to empty plans. There primary reason for existence to place top level/end goals in the plan"""
+    """Goals are special Decomposers that are only applicable to empty plans or plans only Goals have run on.
+    There primary reason for existence is to place top level/end goals in to the plan"""
 
-    def __init__(self, uid:str, register_self:bool=True):
-        super().__init__(uid = uid, register_self = register_self)
+    def __init__(self, uid:str, register_self: bool = True):
+        super().__init__(uid=uid, register_self=register_self)
 
+    # noinspection PyMethodMayBeStatic
     def applicable(self, plan: Plan) -> bool:
         if len(plan.nodes_by_UID) == 0:
             return True
         elif (len(plan.nodes_by_UID) == len(plan.tasks_by_UID)) and (len(plan.tasks_by_UID) == len(plan.leaf_tasks())):
-            # if the only nodes are tasks and all of those tasks are leaves then we assume no Decomposers other than Goals have run.
+            # if the only nodes are tasks and all of those tasks are leaves then we assume no Decomposers other than
+            # Goals have run.
             return True
         else:
             return False
 
-
+"""the global registry of all Decomposers"""
 decomposer_registry:IDRegistry[Decomposer] = IDRegistry(uid="__internal__.decomposer_registry")
 id_registry_registry.register(decomposer_registry.uid,decomposer_registry)

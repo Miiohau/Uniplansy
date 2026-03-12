@@ -14,12 +14,13 @@ from typing import Optional, Set, List, Iterable
 from uniplansy.decomposers.core import Decomposer, decomposer_registry
 from uniplansy.planner.core import PlanCacheStrategy, PlanningContext, PlanContext
 from uniplansy.planner.decomposer_selection_strategy import DecomposerSelectionStrategy
-from uniplansy.planner.plan_selection_strategy import PlanSelectionStrategy
+from uniplansy.planner.plan_selection_strategy import FullPlanSelectionStrategy
 from uniplansy.plans.plan import Plan, PlanDeltas
 from uniplansy.plans.plan_comparison_strategy import PlanComparisonStrategy, PlanValueToken
 from uniplansy.util.id_registry import RegistryKeyNotFoundError
 
-
+# TODO: make a compositable PlanningStrategy by having the plan method equivalent take a list parameter of
+#  Plan, Decomposer pairs and return a list of Plan, Decomposer pairs
 class PlanningStrategy(metaclass=ABCMeta):
     """a PlanningStrategy can be used to select a Plan Decomposer pair
 
@@ -64,7 +65,7 @@ class DelegatingPlanningStrategy(PlanningStrategy):
     plan_selection_strategy(property): the PlanSelectionStrategy to use to select a plan
     decomposer_selection_strategy(property): the DecomposerSelectionStrategy to use to select a decomposer
     """
-    plan_selection_strategy: PlanSelectionStrategy
+    plan_selection_strategy: FullPlanSelectionStrategy
     decomposer_selection_strategy: DecomposerSelectionStrategy
 
     def introduce_plan_cache_strategy(self, plan_cache_strategy: PlanCacheStrategy):
