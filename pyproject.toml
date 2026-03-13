@@ -9,10 +9,10 @@ name = "Uniplansy"
 dynamic = ["version"]
 dependencies = [
     'immutabledict'
-    ]
+]
 requires-python = ">= 3.11"
-authors = [{name = "miiohau", email = "Miiohau@gmail.com"}]
-maintainers = [{name = "miiohau", email = "Miiohau@gmail.com"}]
+authors = [{ name = "miiohau", email = "Miiohau@gmail.com" }]
+maintainers = [{ name = "miiohau", email = "Miiohau@gmail.com" }]
 description = "Uniplansy(UNIversal PLANning SYstem). A framework for making planning systems."
 readme = "README.md"
 license = "Apache-2.0"
@@ -25,8 +25,7 @@ classifiers = [
     #   3 - Alpha
     #   4 - Beta
     #   5 - Production/Stable
-    "Development Status :: 1 - Planning",
-
+    "Development Status :: 3 - Alpha",
     # Indicate who your project is intended for
     "Intended Audience :: Developers",
     "Intended Audience :: Other Audience",
@@ -35,23 +34,20 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
-
     # Specify the Python versions you support here.
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
-    #remove next line when ready to upload to PyPI
-    "Private :: Do Not Upload"
 ]
 
 [project.urls]
 # TODO: fill these in when ready to upload to github
 #Homepage = "https://example.com"
 #Documentation = "https://readthedocs.org"
-#Repository = "https://github.com/me/spam.git"
-#Issues = "https://github.com/me/spam/issues"
-#Changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"
+Repository = "https://github.com/Miiohau/Uniplansy"
+Issues = "https://github.com/Miiohau/Uniplansy/issues"
+Changelog = "https://github.com/Miiohau/Uniplansy/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 jsonpickle = ["jsonpickle"]
