@@ -74,9 +74,20 @@ class Reasoner(Generic[Reasoner_Update_Context_Type,World_Type],HasRequiredUID,m
         self.id_registry:IDRegistry[ReasonerBuilder] = id_registry
         self.start_conditions:List[ReasonerConsideration] = start_conditions
         self.run_conditions:List[ReasonerConsideration] = run_conditions
-        self.state:ReasonerState = ReasonerState.Not_Started
+        self.state: ReasonerState = ReasonerState.Not_Started
         self.failure_context:Optional[Exception] = None
         self.active_sub_reasoners:List[SubReasonerStruct[Reasoner_Update_Context_Type,World_Type]] = []
+
+    def _build_failure_context(self, new_context: Exception, existing_context: Optional[Exception]) -> Optional[Exception]:
+        """Helper to build/collapse ExceptionGroups consistently."""
+        if existing_context is None:
+            return new_context
+        elif isinstance(existing_context, ExceptionGroup):
+            new_exceptions = list(existing_context.exceptions)
+            new_exceptions.append(new_context)
+            return ExceptionGroup(f"failure ExceptionGroup for Reasoner {self.uid}", new_exceptions)
+        else:
+            return ExceptionGroup(f"failure ExceptionGroup for Reasoner {self.uid}", [existing_context, new_context])
 
     # noinspection PyUnusedLocal
     def handle_self_caused_errors(self, update_context:Reasoner_Update_Context_Type, error:BaseException):
@@ -122,7 +133,7 @@ class Reasoner(Generic[Reasoner_Update_Context_Type,World_Type],HasRequiredUID,m
 
     # noinspection PyUnusedLocal
     def handle_act_error(self, world: World_Type, update_context: Reasoner_Update_Context_Type,
-                               error: BaseException):
+                         error: BaseException):
         """handles self-caused errors leaving the act method. In general subclasses shouldn't override this method instead they should handle the error inside the act method."""
         self.handle_self_caused_errors(update_context, error)
 
@@ -209,17 +220,7 @@ class Reasoner(Generic[Reasoner_Update_Context_Type,World_Type],HasRequiredUID,m
                 except ReasonerException as e:
                     should_continue = False
                     failed_considerations.append(current_reasoner_consideration)
-                    if active_reasoner_consideration_failure_context is None:
-                        active_reasoner_consideration_failure_context = e
-                    elif isinstance(active_reasoner_consideration_failure_context, ExceptionGroup):
-                        inner_exceptions:list[Exception | ExceptionGroup[Exception | Any] | Any] = list(active_reasoner_consideration_failure_context.exceptions)
-                        inner_exceptions.append(e)
-                        active_reasoner_consideration_failure_context = ExceptionGroup("active reasoner considerations ExceptionGroup for Reasoner " + self.uid, inner_exceptions)
-                    else:
-                        inner_exceptions: list[Exception | ExceptionGroup[Exception | Any] | Any] = list()
-                        inner_exceptions.append(active_reasoner_consideration_failure_context)
-                        inner_exceptions.append(e)
-                        active_reasoner_consideration_failure_context = ExceptionGroup("active reasoner considerations ExceptionGroup for Reasoner " + self.uid, inner_exceptions)
+                    active_reasoner_consideration_failure_context = self._build_failure_context(e,active_reasoner_consideration_failure_context)
             if not should_continue:
                 curChild.should_null_sub_reasoner = True
                 self.handle_active_reasoner_consideration_failure(curChild,failed_considerations, update_context,active_reasoner_consideration_failure_context)
@@ -324,21 +325,7 @@ class CommonConjunctionReasoner(Reasoner[Reasoner_Update_Context_Type,World_Type
             else:
                 new_failure_context: ChildFailureException = ChildFailureException(child=child.reasoner)
                 new_failure_context.__cause__ = failure_context
-                if self.failure_context is None:
-                    active_reasoner_consideration_failure_context = new_failure_context
-                elif isinstance(self.failure_context, ExceptionGroup):
-                    inner_exceptions: list[Exception | ExceptionGroup[Exception | Any] | Any] = list(
-                        self.failure_context.exceptions)
-                    inner_exceptions.append(new_failure_context)
-                    active_reasoner_consideration_failure_context = ExceptionGroup(
-                        "failure ExceptionGroup for Reasoner " + self.uid, inner_exceptions)
-                else:
-                    inner_exceptions: list[Exception | ExceptionGroup[Exception | Any] | Any] = list()
-                    inner_exceptions.append(self.failure_context)
-                    inner_exceptions.append(new_failure_context)
-                    active_reasoner_consideration_failure_context = ExceptionGroup(
-                        "failure ExceptionGroup for Reasoner " + self.uid, inner_exceptions)
-
+                self._build_failure_context(new_failure_context,self.failure_context)
     # noinspection PyUnusedLocal
     def handle_child_failure(self, child:SubReasonerStruct[Reasoner_Update_Context_Type,World_Type], update_context:Reasoner_Update_Context_Type, failure_context:Optional[Exception]):
         self.child_failure_count = self.child_failure_count + 1
@@ -351,21 +338,7 @@ class CommonConjunctionReasoner(Reasoner[Reasoner_Update_Context_Type,World_Type
             else:
                 new_failure_context: ChildFailureException = ChildFailureException(child=child.reasoner)
                 new_failure_context.__cause__ = failure_context
-                if self.failure_context is None:
-                    active_reasoner_consideration_failure_context = new_failure_context
-                elif isinstance(self.failure_context, ExceptionGroup):
-                    inner_exceptions: list[Exception | ExceptionGroup[Exception | Any] | Any] = list(
-                        self.failure_context.exceptions)
-                    inner_exceptions.append(new_failure_context)
-                    active_reasoner_consideration_failure_context = ExceptionGroup(
-                        "failure ExceptionGroup for Reasoner " + self.uid, inner_exceptions)
-                else:
-                    inner_exceptions: list[Exception | ExceptionGroup[Exception | Any] | Any] = list()
-                    inner_exceptions.append(self.failure_context)
-                    inner_exceptions.append(new_failure_context)
-                    active_reasoner_consideration_failure_context = ExceptionGroup(
-                        "failure ExceptionGroup for Reasoner " + self.uid, inner_exceptions)
-
+                self._build_failure_context(new_failure_context, self.failure_context)
 
     def handle_child_success(self, child: SubReasonerStruct[Reasoner_Update_Context_Type, World_Type],
                              update_context: Reasoner_Update_Context_Type):
@@ -377,21 +350,11 @@ class CommonConjunctionReasoner(Reasoner[Reasoner_Update_Context_Type,World_Type
         if self.all_semantics:
             if self.child_failure_count > 0:
                 self.state = ReasonerState.Failed
-            elif self.child_successes_count > 0:
-                self.state = ReasonerState.Done
-            elif self.default_finished_state is not None:
-                self.state = self.default_finished_state
-            else:
-                self.state = ReasonerState.Done
+            self.state = self.default_finished_state or ReasonerState.Done
         elif self.any_semantics:
             if self.child_successes_count > 0:
                 self.state = ReasonerState.Done
-            elif self.child_failure_count > 0:
-                self.state = ReasonerState.Failed
-            elif self.default_finished_state is not None:
-                self.state = self.default_finished_state
-            else:
-                self.state = ReasonerState.Failed
+            self.state = self.default_finished_state or ReasonerState.Failed
         else:
             self.state = ReasonerState.Done
 
