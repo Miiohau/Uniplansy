@@ -7,7 +7,8 @@ import copy
 import statistics
 from dataclasses import dataclass, field, FrozenInstanceError
 from fractions import Fraction
-from typing import Optional, List, Self, Any
+from math import isfinite
+from typing import Optional, List, Self, Any, ClassVar
 
 from immutabledict import immutabledict
 
@@ -178,6 +179,15 @@ class PlanDeltas:
     leaf_tasks_delta: int = 0
     satisfied_percentage_deltas: immutabledict[str, float | Fraction] = immutabledict({})
     added_childless_decomposer_node_count: int = 0
+    if __debug__:
+        NO_SPECIAL_VALUES_ALLOWED_ATTRIBUTES: ClassVar[list[str]] = ['total_motivation_delta', 'min_cost_delta',
+                                                                     'max_cost_delta', 'estimated_cost_delta']
+
+        def __post_init__(self):
+            for name in Task.NO_SPECIAL_VALUES_ALLOWED_ATTRIBUTES:
+                value = getattr(self, name)
+                if isinstance(value, float) and not isfinite(value):
+                    raise TypeError(f"{value} is not finite. floats assigned to {name} must be finite")
 
 # TODO: add the concept of constraints that have to remain true for the Plan to remain valid
 @dataclass(init=True, repr=True)

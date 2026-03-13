@@ -2,7 +2,8 @@
 from dataclasses import dataclass, field
 from decimal import Decimal
 from fractions import Fraction
-from typing import Any, Self, Optional
+from math import isfinite
+from typing import Any, Self, Optional, ClassVar
 
 from immutabledict import immutabledict
 
@@ -129,3 +130,13 @@ class Task(PlanGraphNode):
         del self.__dict__['task_description_id_context_id']
         self.description = self.task_description_id_context.fetch(state['description_id'])
         del self.__dict__['description_id']
+
+    if __debug__:
+        NO_SPECIAL_VALUES_ALLOWED_ATTRIBUTES: ClassVar[list[str]] = ['motivation', 'estimated_cost', 'min_cost',
+                                                                     'max_cost','satisfied_percentage']
+
+        def __setattr__(self, name, value):
+            if name in Task.NO_SPECIAL_VALUES_ALLOWED_ATTRIBUTES:
+                if isinstance(value, float) and not isfinite(value):
+                    raise TypeError(f"{value} is not finite. floats assigned to {name} must be finite")
+            super().__setattr__(name, value)
