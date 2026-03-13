@@ -51,3 +51,6 @@ Changelog = "https://github.com/Miiohau/Uniplansy/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 jsonpickle = ["jsonpickle"]
+
+[tool.hatch.version]
+path = "uniplansy/__about__.py"
