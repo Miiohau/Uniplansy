@@ -63,7 +63,6 @@ class SubReasonerStruct(Generic[Reasoner_Update_Context_Type,World_Type]):
 # Todo: validate this against a set of requirements
 class Reasoner(Generic[Reasoner_Update_Context_Type,World_Type],HasRequiredUID,metaclass=ABCMeta):
 
-
     def __init__(self, uid:str, id_registry:IDRegistry[ReasonerBuilder], start_conditions:List[ReasonerConsideration]=None, run_conditions:List[ReasonerConsideration]=None):
         super().__init__()
         if start_conditions is None:
@@ -198,9 +197,59 @@ class Reasoner(Generic[Reasoner_Update_Context_Type,World_Type],HasRequiredUID,m
         for curChild in active_sub_reasoners:
             self.run_child(curChild, world, update_context)
 
+    def _validate_child_considerations(self, child: SubReasonerStruct[Reasoner_Update_Context_Type, World_Type],
+                                       world: World_Type, update_context: Reasoner_Update_Context_Type):
+        """Check and validate child's considerations"""
+        should_continue = True
+        failure_context: Optional[Exception] = None
+        failed_considerations = []
+        for consideration in child.active_reasoner_considerations:
+            try:
+                if not consideration.is_valid_state(world):
+                    should_continue = False
+                    failed_considerations.append(consideration)
+            except ReasonerException as e:
+                should_continue = False
+                failed_considerations.append(consideration)
+                failure_context = self._build_failure_context(e, failure_context)
+        if not should_continue:
+            child.should_null_sub_reasoner = True
+            self.handle_active_reasoner_consideration_failure(
+                child, failed_considerations, update_context, failure_context
+            )
+            if child.should_null_sub_reasoner:
+                child.reasoner.exit(update_context)
+                self.active_sub_reasoners.remove(child)
+
+    def _handle_new_sub_reasoners(self, update_context: Reasoner_Update_Context_Type):
+        """Process newly discovered sub-reasoners"""
+        new_reasoners = []
+        if self.state.is_in_progress_state:
+            try:
+                new_reasoners = self.think(update_context)
+            except BaseException as error:
+                self.handle_think_error(update_context, error)
+        for child in new_reasoners:
+            if self.active_sub_reasoners.count(child) == 0:
+                self.active_sub_reasoners.append(child)
+                child.entered_sub_reasoner = True
+                try:
+                    child.enter_state = child.reasoner.enter(update_context)
+                    if child.enter_state.is_finalized_state:
+                        child.should_null_sub_reasoner = True
+                        if child.enter_state is ReasonerState.Done:
+                            self.handle_child_success(update_context, child)
+                except ReasonerException as e:
+                    child.should_null_sub_reasoner = True
+                    child.enter_state = ReasonerState.Failed
+                    self.handle_child_enter_failure(child, update_context, e)
+                if child.enter_state.is_finalized_state and child.should_null_sub_reasoner:
+                    self.active_sub_reasoners.remove(child)
+
     @final
-    def update(self, world:World_Type, parent_update_context:Reasoner_Update_Context_Type) -> ReasonerState:
+    def update(self, world: World_Type, parent_update_context: Reasoner_Update_Context_Type) -> ReasonerState:
         update_context = copy.deepcopy(parent_update_context)
+        # Sense and early exit
         try:
             update_context = self.sense(world, update_context)
         except BaseException as error:
@@ -208,57 +257,19 @@ class Reasoner(Generic[Reasoner_Update_Context_Type,World_Type],HasRequiredUID,m
         if self.state.is_finalized_state:
             self.exit(update_context)
             return self.state
-        for curChild in self.active_sub_reasoners:
-            should_continue = True
-            active_reasoner_consideration_failure_context :Optional[Exception] = None
-            failed_considerations:list[ReasonerConsideration] = []
-            for current_reasoner_consideration in curChild.active_reasoner_considerations:
-                try:
-                    if not current_reasoner_consideration.is_valid_state(world):
-                        should_continue = False
-                        failed_considerations.append(current_reasoner_consideration)
-                except ReasonerException as e:
-                    should_continue = False
-                    failed_considerations.append(current_reasoner_consideration)
-                    active_reasoner_consideration_failure_context = self._build_failure_context(e,active_reasoner_consideration_failure_context)
-            if not should_continue:
-                curChild.should_null_sub_reasoner = True
-                self.handle_active_reasoner_consideration_failure(curChild,failed_considerations, update_context,active_reasoner_consideration_failure_context)
-                if curChild.should_null_sub_reasoner:
-                    curChild.reasoner.exit(update_context)
-                    self.active_sub_reasoners.remove(curChild)
+        # Process children
+        for child in self.active_sub_reasoners:
+            self._validate_child_considerations(child, world, update_context)
         self.run_children(self.active_sub_reasoners, world, update_context)
-        possible_new_sub_reasoners: List[SubReasonerStruct[Reasoner_Update_Context_Type,World_Type]] = []
-        if self.state.is_in_progress_state:
-            try:
-                possible_new_sub_reasoners = self.think(update_context)
-            except BaseException as error:
-                self.handle_think_error(update_context,error)
-            for curChild in possible_new_sub_reasoners:
-                if self.active_sub_reasoners.count(curChild)==0:
-                    self.active_sub_reasoners.append(curChild)
+        self._handle_new_sub_reasoners(update_context)
         if self.state.is_finalized_state:
             self.exit(update_context)
             return self.state
-        if len(possible_new_sub_reasoners) >= 1:
-            for curChild in possible_new_sub_reasoners:
-                curChild.entered_sub_reasoner = True
-                try:
-                    curChild.enter_state = curChild.reasoner.enter(update_context)
-                    if curChild.enter_state.is_finalized_state:
-                        curChild.should_null_sub_reasoner = True
-                        if curChild.enter_state is ReasonerState.Done:
-                            self.handle_child_success(update_context,curChild)
-                except ReasonerException as e:
-                    curChild.should_null_sub_reasoner = True
-                    curChild.enter_state = ReasonerState.Failed
-                    self.handle_child_enter_failure(curChild,update_context,e)
-                if curChild.enter_state.is_finalized_state and curChild.should_null_sub_reasoner:
-                    self.active_sub_reasoners.remove(curChild)
+        # Perform action
         try:
-            self.act(world,update_context)
+            self.act(world, update_context)
         except BaseException as error:
-            self.handle_act_error(world,update_context,error)
+            self.handle_act_error(world, update_context, error)
         if self.state.is_finalized_state:
             self.exit(update_context)
         return self.state
