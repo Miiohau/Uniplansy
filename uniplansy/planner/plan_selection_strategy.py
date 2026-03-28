@@ -1,8 +1,18 @@
 """defines the PlanSelectionStrategy and some subclasses. a PlanSelectionStrategy selects a plan in the context of a
 planning_context.
 
-PlanSelectionStrategy(Interface): the core class of this module. a plan selection strategy selects a plan in the
+PlanSelectionStrategy(Interface): TODO:DocString
+FullPlanSelectionStrategy(interface): the core class of this module. a plan selection strategy selects a plan in the
 context of a planning_context.
+PartialPlanSelectionStrategy(interface): TODO:DocString
+PlanFilterStrategy(): TODO:DocString
+InitialPartialPlanSelectionStrategy(interface): TODO:DocString
+FinalPartialPlanSelectionStrategy(interface): TODO:DocString
+NotPlanFilterStrategy(): TODO:DocString
+OrPlanFilterStrategy(): TODO:DocString
+RandomPlanSelectionStrategy(): TODO:DocString
+FirstValidPlanSelectionStrategy(): TODO:DocString
+ArbitraryInitialPartialPlanSelectionStrategy(): TODO:DocString
 GreedyPlanSelectionStrategy(PlanSelectionStrategy):a greedy PlanSelectionStrategy that returns plans in sort order
 (determined by plan_comparison_strategy: PlanComparisonStrategy)
 """

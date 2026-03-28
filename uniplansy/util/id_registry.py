@@ -9,7 +9,7 @@ id_registry_registry(global): the global registry of IDIDRegistries
 from dataclasses import dataclass, field
 from typing import TypeVar, Generic, Optional, Any
 
-from uniplansy.util.uid_suppliers.uid_supplier import GUIDSupplier, default_guid_supplier
+from uniplansy.util.uid_suppliers.uid_supplier import default_guid_supplier, UIDSupplier
 from uniplansy.util.has_uid import HasRequiredUID
 
 
@@ -50,7 +50,7 @@ class IDRegistry(Generic[Registered_Object],HasRequiredUID):
     """
     uid: str = field(default_factory=default_guid_supplier.create_guid)
     _registry: dict[str, Registered_Object] = field(default_factory=dict[str, Optional[Registered_Object]], init=False)
-    guid_supplier: Optional[GUIDSupplier] = None
+    guid_supplier: Optional[UIDSupplier] = None
 
     def __eq__(self, other):
         return self is other

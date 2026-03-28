@@ -74,3 +74,14 @@ class GreedyDecomposerSelectionStrategy(DecomposerSelectionStrategy):
             except RegistryKeyNotFoundError:
                 selected_decomposer = None
         return selected_decomposer
+
+# standard PlanningStrategies
+# Full Partial Initial Final
+# Filter
+# Composite (full)
+# Not filter
+# Or filter
+# Random
+# First Valid
+# Arbitrary Initial
+# Greedy

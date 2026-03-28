@@ -166,3 +166,18 @@ class GreedyPlanningStrategy(PlanningStrategy):
             elif cur_token == PlanValueToken.satisfied_percentage_median:
                 plan_to_populate.median_satisfied_percentage()
 
+
+# standard PlanningStrategies
+# Full Partial Initial Final
+# Filter
+# Composite (full)
+# Not filter
+# Or filter
+# Random
+# First Valid
+# Arbitrary Initial
+# Greedy
+# plan filter to planning filter
+# decomposer filter to planning filter
+# deepest first filter
+# shallowest first filter

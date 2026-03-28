@@ -23,6 +23,7 @@ class ReasonerBuilder(CustomCopyable,HasOptionalUID,metaclass=ABCMeta):
     the build method merely returns the root Reasoner
 
     TODO:finish docstring"""
+    """the reasoner's uid """
     uid: Optional[str] = field(default=None, init=False)
 
     def fill_unset_fields(self, id_registry: Optional[IDRegistry[ReasonerBuilder]] = None,

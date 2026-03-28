@@ -106,10 +106,11 @@ class Decomposer(HasRequiredUID, metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def convert_to_reasoner_graph(self, node: DecomposerNode) -> ReasonerTemplate:
+    def convert_to_reasoner_graph(self, node: DecomposerNode, node_id_to_builder_id: dict[str, str]) -> ReasonerTemplate:
         """convert the decomposed tasks to reasoner graph
 
         :param node: the DecomposerNode with any notes the Decomposer made at that time
+        :param node_id_to_builder_id: a dictionary that maps node UIDs to builder UIDs
         :return: the reasoner template that will be used to create the Reasoner that will apply the course of action
         this Decomposer represents in practice"""
         pass
