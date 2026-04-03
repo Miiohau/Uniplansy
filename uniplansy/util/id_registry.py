@@ -15,20 +15,24 @@ from uniplansy.util.has_uid import HasRequiredUID
 
 class RegistryKeyError(ValueError):
     """an error raised when there is a problem with a key used in an IDRegistry"""
+
+    UID_REGEX: str = "<key>"
     pass
 
 class RegistryKeyNotFoundError(RegistryKeyError):
     """an error raised a key isn't found in an IDRegistry"""
 
-    def __init__(self, msg='ID not registered', *args):
-        super().__init__(msg, *args)
+    def __init__(self, msg='ID (' + RegistryKeyError.UID_REGEX + ') not registered', uid='', *args):
+        final_msg = msg.replace(RegistryKeyError.UID_REGEX, uid)
+        super().__init__(final_msg, *args)
 
 
 class RegistryKeyAlreadyExistsError(RegistryKeyError):
     """an error raised when trying to register an object under a key that already exists"""
 
-    def __init__(self, msg='ID already registered', *args):
-        super().__init__(msg, *args)
+    def __init__(self, msg='ID (' + RegistryKeyError.UID_REGEX + ') already registered', uid='', *args):
+        final_msg = msg.replace(RegistryKeyError.UID_REGEX, uid)
+        super().__init__(final_msg, *args)
 
 
 #TODO: (after upgrading to python 3.12) Remove TypeVars and convert to new Type Parameter Syntax
@@ -62,7 +66,7 @@ class IDRegistry(Generic[Registered_Object],HasRequiredUID):
         :throws RegistryKeyNotFoundError: if uid is already registered
         """
         if (uid in self._registry.keys()) and (not (item is self._registry[uid])):
-            raise RegistryKeyAlreadyExistsError()
+            raise RegistryKeyAlreadyExistsError(uid=uid)
         self._registry[uid] = item
 
     def reregister(self, uid: str, item: Registered_Object):
@@ -73,7 +77,7 @@ class IDRegistry(Generic[Registered_Object],HasRequiredUID):
         :param uid: the unique ID to reregister the object under
         :param item: the object to be reregistered"""
         if (uid in self._registry.keys()) and (not (item is self._registry[uid])) and (self._registry[uid] is not None):
-            raise RegistryKeyAlreadyExistsError()
+            raise RegistryKeyAlreadyExistsError(uid=uid)
         self._registry[uid] = item
 
     def replace(self, uid: str, item: Registered_Object) -> Optional[Registered_Object]:
@@ -103,7 +107,7 @@ class IDRegistry(Generic[Registered_Object],HasRequiredUID):
         :throws RegistryKeyNotFoundError: if uid is not registered
         """
         if uid not in self._registry:
-            raise RegistryKeyNotFoundError()
+            raise RegistryKeyNotFoundError(uid=uid)
         return self._registry[uid]
 
     def retire_referred_object(self, uid:str):
@@ -113,7 +117,7 @@ class IDRegistry(Generic[Registered_Object],HasRequiredUID):
         :throws RegistryKeyNotFoundError: if uid is not registered
         """
         if uid not in self._registry:
-            raise RegistryKeyNotFoundError("Can't retire an object that was never registered")
+            raise RegistryKeyNotFoundError("Can't retire an object (" + uid + ") that was never registered")
         self._registry[uid] = None
 
     def retire_self(self):

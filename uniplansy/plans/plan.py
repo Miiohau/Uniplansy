@@ -626,7 +626,7 @@ class Plan(FreezableObject, HasOptionalUID):
         if not self.node_id_context.contains(new_node.uid):
             self.node_id_context.register(new_node.uid, new_node)
         elif not (new_node.is_compatible_with(self.node_id_context.fetch(new_node.uid))):
-            raise RegistryKeyAlreadyExistsError()
+            raise RegistryKeyAlreadyExistsError(uid=new_node.uid)
         if new_node.node_id_context is None:
             new_node.node_id_context = self.node_id_context
         if isinstance(new_node,Task):
