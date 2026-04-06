@@ -1,8 +1,17 @@
+""" the submodule where main Planner class and its primary supports live
+
+Planner (class): responsible for running the planning algorithm
+PlanningContext (class): Holds the overall data on the state of the planner, including all currently loaded plans and
+the planning tree
+PlanContext (class): the context surrounding a plan
+DecomposerContext (class): the context surrounding a decomposer applied to a plan
+UIDNode (class): Holds the data on the planning tree
+"""
 # TODO: (after updating to python 3.14 (in which Annotations are lazily evaluated by default))
 #  remove "from __future__ import annotations"
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Generic
 
 from uniplansy.decomposers.core import Decomposer
 from uniplansy.planner.plan_cache_strategy import PlanCacheStrategy
@@ -12,6 +21,7 @@ from uniplansy.planner.stopping_strategy import StoppingStrategy
 from uniplansy.plans.plan import Plan, PlanGraphNode
 from uniplansy.reasoners.graph import ReasonerBuilder
 from uniplansy.tasks.tasks import TaskDescription
+from uniplansy.util.global_type_vars import World_Type
 from uniplansy.util.id_registry import IDRegistry
 from uniplansy.util.uid_suppliers.uid_supplier import UIDSupplier, default_guid_supplier
 from uniplansy.util.uid_suppliers.wrappers.wrappers import UniqueInDictUIDSupplierWrapper
@@ -22,6 +32,7 @@ class UIDNode:
     """Holds the data on the planning tree"""
     uid: str
     children: List[UIDNode] = field(default_factory=list)
+
 
 @dataclass
 class PlanningContext:
@@ -37,41 +48,56 @@ class PlanningContext:
     plan_by_uid: Dict[str, Optional[PlanContext]] = field(default_factory=dict)
     notes: Dict[str, Any] = field(default_factory=dict)
 
+
 @dataclass
 class PlanContext:
-    """the context of surrounding a plan
+    """the context surrounding a plan
 
     plan(attribute): the plan
     notes(attribute): a dictionary to hold misc data."""
     plan: Optional[Plan]
     notes: Dict[str, Any] = field(default_factory=dict)
 
+
 @dataclass
 class DecomposerContext:
-    """the context of surrounding a decomposer applied to a plan
+    """the context surrounding a decomposer applied to a plan
 
     decomposer(attribute): the decomposer this node applies to
     notes(attribute): a dictionary to hold misc data."""
     decomposer: Decomposer
     notes: Dict[str, Any] = field(default_factory=dict)
 
-class Planner:
+
+class Planner(Generic[World_Type]):
+    """responsible for running the planning algorithm
+
+    resume_planning (method): Resumes planning the planning loop
+    planning_strategy (parameter): the planning strategy to use
+    stopping_strategy (parameter): the stopping strategy to use
+    final_plan_selection_strategy (parameter): plan_selection_strategy to use when it is time to pause planning
+    decomposers (parameter): the set of decomposers to use
+    cache_strategy (parameter): the cache strategy to use
+    plan_uid_supplier (parameter): the UID supplier to use to generate uids for plans that don't have them yet.
+    (used so decomposers don't have to provide uid to the plans they decompose if they don't want to)
+    """
+
     def __init__(self,
                  planning_strategy: PlanningStrategy,
                  stopping_strategy: StoppingStrategy,
                  final_plan_selection_strategy: FullPlanSelectionStrategy,
                  cache_strategy: PlanCacheStrategy,
-                 decomposers:set[Decomposer],
-                 plan_uid_supplier:UIDSupplier = default_guid_supplier):
+                 decomposers: set[Decomposer],
+                 plan_uid_supplier: UIDSupplier = default_guid_supplier):
         self.planning_strategy = planning_strategy
         self.stopping_strategy = stopping_strategy
         self.final_plan_selection_strategy = final_plan_selection_strategy
         self.cache_strategy = cache_strategy
         self.decomposers = decomposers
-        self.node_id_context:IDRegistry[PlanGraphNode] = IDRegistry()
+        self.node_id_context: IDRegistry[PlanGraphNode] = IDRegistry()
         self.task_description_id_context: IDRegistry[TaskDescription] = IDRegistry()
-        root_name:str = "root"
-        root_plan_context: PlanContext = PlanContext(plan= Plan(
+        root_name: str = "root"
+        root_plan_context: PlanContext = PlanContext(plan=Plan(
             uid=root_name,
             node_id_context=self.node_id_context,
             task_description_id_context=self.task_description_id_context
@@ -91,7 +117,7 @@ class Planner:
         self.cache_strategy.introduce_planning_strategy(self.planning_strategy)
         self.planning_context.notes["new plan uids"] = [root_name]
 
-    def resume_planning(self) -> Plan | ReasonerBuilder:
+    def resume_planning(self, world: World_Type) -> Plan | ReasonerBuilder:
         """Resumes planning the planning loop
 
         :return: the final selected plan
@@ -104,7 +130,7 @@ class Planner:
                                        (current_plan_context.plan.uid is not None)]
         for current_plan_context_id in active_plan_uids:
             current_plan_context = self.planning_context.plan_by_uid[current_plan_context_id]
-            if not current_plan_context.plan.valid():
+            if not current_plan_context.plan.valid(world):
                 if self.cache_strategy.should_save_plan(current_plan_context, self.planning_context):
                     self.cache_strategy.save_plan(current_plan_context, self.planning_context)
                 self.planning_context.plan_by_uid[current_plan_context.plan.uid].plan = None
@@ -114,11 +140,11 @@ class Planner:
                 self.planning_context,
                 decomposers=self.decomposers
             )
-            new_plans: List[Plan] = selected_decomposer.decompose_tasks(selected_plan)
+            new_plans: List[Plan] = selected_decomposer.decompose_tasks(selected_plan, world)
             for current_new_plan in new_plans:
                 current_new_plan.freeze()
                 self.planning_strategy.prepopulate_plan_cache(current_new_plan)
-                found_match:bool = False
+                found_match: bool = False
                 for current_old_plan in self.planning_context.plan_by_uid.values():
                     if current_new_plan == current_old_plan:
                         found_match = True

@@ -9,8 +9,9 @@ from typing import List, TypeAlias, Optional, Self, Generic, Callable, ClassVar
 from uniplansy.reasoners.considerations.core import ReasonerConsideration
 from uniplansy.reasoners.core import Reasoner, ReasonerState, ThreadableCommonConjunctionReasoner, \
     PrioritySequenceReasoner, \
-    World_Type, Reasoner_Update_Context_Type, SimpleReasoner
+    Reasoner_Update_Context_Type, SimpleReasoner
 from uniplansy.util.custom_copyable import CustomCopyable
+from uniplansy.util.global_type_vars import World_Type
 from uniplansy.util.uid_suppliers.uid_supplier import GUIDSupplier, default_guid_supplier
 from uniplansy.util.uid_suppliers.wrappers.wrappers import UniqueInIDRegistryUIDSupplierWrapper
 from uniplansy.util.has_preferred_name import HasPreferredName
@@ -159,8 +160,9 @@ class PrioritySequenceReasonerBuilder(ReasonerBuilderBase):
                                         start_conditions=self.start_conditions,
                                         run_conditions=self.run_conditions)
 
+#TODO: convert from a dataclass (it not working)
 @dataclass
-class SimpleReasonerBuilder(Generic[World_Type,Reasoner_Update_Context_Type,],ReasonerBuilderBase):
+class SimpleReasonerBuilder(Generic[World_Type, Reasoner_Update_Context_Type,], ReasonerBuilderBase):
     sense_delegate: Optional[Callable[[World_Type, Reasoner_Update_Context_Type], Reasoner_Update_Context_Type]] = None,
     act_delegate: Optional[Callable[[World_Type, Reasoner_Update_Context_Type], bool]] = None,
 

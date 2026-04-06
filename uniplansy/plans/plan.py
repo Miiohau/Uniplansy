@@ -1,3 +1,9 @@
+"""holds Plan and its main support classes
+
+Plan (Class): TODO:docstring
+PlanGraphNode (Class): a graph node of the plan
+PlanDeltas (class): a data class to store deltas to the summary statistics of a Plan
+"""
 #TODO: (after upgrading to python 3.12) uncomment @override Decorators
 #TODO: (after updating to python 3.14 (in which Annotations are lazily evaluated by default))
 # remove "from __future__ import annotations"
@@ -8,7 +14,7 @@ import statistics
 from dataclasses import dataclass, field, FrozenInstanceError
 from fractions import Fraction
 from math import isfinite
-from typing import Optional, List, Self, Any, ClassVar
+from typing import Optional, List, Self, Any, ClassVar, Generic
 
 from immutabledict import immutabledict
 
@@ -16,14 +22,16 @@ from uniplansy.plans.constraints import Constraint
 from uniplansy.tasks.task_filter import TaskFilter
 from uniplansy.tasks.tasks import Task, TaskDescription
 from uniplansy.util.FreezableObject import FreezableObject
+from uniplansy.util.global_type_vars import World_Type
 from uniplansy.util.has_uid import HasOptionalUID, HasRequiredUID
 from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError, id_registry_registry
 
 
 @dataclass
 class PlanGraphNode(FreezableObject, HasRequiredUID):
-    """TODO: Docstring for PlanGraphNode.
+    """a graph node of the plan
 
+    todo: finished docstring
     """
     uid: str
     node_id_context: Optional[IDRegistry[PlanGraphNode]] = field(default=None, init=False)
@@ -49,6 +57,7 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
 
     # @override
     def unfreeze(self):
+        """ unfreezes the plan"""
         super().unfreeze()
         self.frozen_children = None
         self.frozen_parents = None
@@ -60,12 +69,19 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
         """
         return self.could_be_equal(other)
 
-    def set_matching_deep_copy(self,other:Self,memo):
-        super().set_matching_deep_copy(other,memo)
-        other.frozen_parents = copy.deepcopy(self.frozen_parents,memo)
-        other.frozen_children = copy.deepcopy(self.frozen_children,memo)
-        other.children = copy.deepcopy(self.children,memo)
-        other.parents = copy.deepcopy(self.parents,memo)
+    def set_matching_deep_copy(self, other: Self, memo):
+        """takes a raw instance of PlanGraphNode and
+        fills its fields from this instance in the context of a deep copy.
+
+        :param other: the raw Plan
+        :param memo: a blackbox used internally by the copy package.
+        See https://docs.python.org/3/library/copy.html#object.__deepcopy__for more information
+        """
+        super().set_matching_deep_copy(other, memo)
+        other.frozen_parents = copy.deepcopy(self.frozen_parents, memo)
+        other.frozen_children = copy.deepcopy(self.frozen_children, memo)
+        other.children = copy.deepcopy(self.children, memo)
+        other.parents = copy.deepcopy(self.parents, memo)
         other.node_id_context = self.node_id_context
 
     # @override
@@ -80,7 +96,7 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
         del state['node_id_context']
         return state
 
-    def __setstate__(self,state):
+    def __setstate__(self, state):
         self.__dict__.update(state)
         self.node_id_context = id_registry_registry.fetch(state['node_id_context_id'])
         del self.__dict__['node_id_context_id']
@@ -88,7 +104,7 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
     # possible algorithms
     # vf2 algorithm
     # Weisfeiler Leman graph isomorphism test
-    def _are_children_equal(self, other, memo: dict[str,Any]) -> bool:
+    def _are_children_equal(self, other, memo: dict[str, Any]) -> bool:
         are_equal: bool = True
         for cur_self_child in self.children:
             possible_matches: set[str] = set()
@@ -116,7 +132,7 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
                 break
         return are_equal
 
-    def _are_parents_equal(self, other, memo: dict[str,Any]) -> bool:
+    def _are_parents_equal(self, other, memo: dict[str, Any]) -> bool:
         are_equal: bool = True
         for cur_self_parent in self.parents:
             if cur_self_parent.uid in memo["visited nodes"]:
@@ -140,6 +156,11 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
         return are_equal
 
     def could_be_equal(self, other) -> bool:
+        """returns true if self and other could be equal
+
+        :param other: the other PlanPlanGraphNode
+        :return: true if self and other could be equal
+        """
         if not isinstance(other, type(self)):
             return False
         #uids aren't compared here because matching uids on PlanGraphNodes imply compatibility not equality
@@ -148,7 +169,13 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
             return False
         return True
 
-    def are_equal(self, other, memo: dict[str,Any]) -> bool:
+    def are_equal(self, other, memo: dict[str, Any]) -> bool:
+        """ does best effort equality check
+
+        :param other: the other PlanGraphNode
+        :param memo: a dict to record information on the possible equality of this and the other plans nodes
+        :return: true if self and other are equal
+        """
         if not self.could_be_equal(other):
             return False
         if not "visited nodes" in memo:
@@ -170,7 +197,9 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
 
 @dataclass(frozen=True)
 class PlanDeltas:
-    """a data class to store deltas to the summary statistics of a Plan"""
+    """a data class to store deltas to the summary statistics of a Plan.
+
+    Primarily used by Decomposer.estimate_deltas"""
     total_motivation_delta: float | Fraction = 0
     min_cost_delta: float | Fraction = 0
     max_cost_delta: float | Fraction = 0
@@ -189,9 +218,10 @@ class PlanDeltas:
                 if isinstance(value, float) and not isfinite(value):
                     raise TypeError(f"{value} is not finite. floats assigned to {name} must be finite")
 
+
 # TODO: add the concept of constraints that have to remain true for the Plan to remain valid
 @dataclass(init=True, repr=True)
-class Plan(FreezableObject, HasOptionalUID):
+class Plan(Generic[World_Type], FreezableObject, HasOptionalUID):
     """TODO:docstring"""
     node_id_context: IDRegistry[PlanGraphNode]
     task_description_id_context: IDRegistry[TaskDescription]
@@ -199,7 +229,7 @@ class Plan(FreezableObject, HasOptionalUID):
     tasks_by_UID: dict[str, Task] = field(default_factory=dict, init=False)
     nodes_by_UID: dict[str, PlanGraphNode] = field(default_factory=dict, init=False)
     constraints: List[Constraint] = field(default_factory=list, init=False)
-    _cached_total_motivation: Optional[float| Fraction] = field(default=None, init=False, compare=False)
+    _cached_total_motivation: Optional[float | Fraction] = field(default=None, init=False, compare=False)
     _cached_min_cost: Optional[float | Fraction] = field(default=None, init=False, compare=False)
     _cached_max_cost: Optional[float | Fraction] = field(default=None, init=False, compare=False)
     _cached_average_satisfied_percentage: Optional[float | Fraction] = field(default=None,
@@ -216,13 +246,13 @@ class Plan(FreezableObject, HasOptionalUID):
     _cached_at_least_one_unsatisfied_task: Optional[bool] = field(default=None, init=False, compare=False)
     _cached_at_least_one_concrete_action: Optional[bool] = field(default=None, init=False, compare=False)
 
-    def valid(self) -> bool:
+    def valid(self, world: World_Type) -> bool:
         """ return True if plan is valid, False otherwise
 
         :return: True if plan is valid, False otherwise
         """
         for cur_constraint in self.constraints:
-            if not cur_constraint.satisfied(self):
+            if not cur_constraint.satisfied(self, world):
                 return False
         return True
 
@@ -530,7 +560,7 @@ class Plan(FreezableObject, HasOptionalUID):
             self._cached_leaf_tasks = r_values
         return r_values
 
-    def at_least_one_unsatisfied_task(self, deltas: Optional[PlanDeltas] = None)-> bool:
+    def at_least_one_unsatisfied_task(self, deltas: Optional[PlanDeltas] = None) -> bool:
         """ returns true if there is at least one unsatisfied task
 
         :param deltas: the PlanDeltas to apply before checking
@@ -565,7 +595,7 @@ class Plan(FreezableObject, HasOptionalUID):
             self._cached_at_least_one_unsatisfied_task = False
         return False
 
-    def at_least_one_concrete_action(self, deltas: Optional[PlanDeltas] = None)-> bool:
+    def at_least_one_concrete_action(self, deltas: Optional[PlanDeltas] = None) -> bool:
         """return true if there is at least concrete action in the plan
 
         a concrete action is a fully satisfied task that is also a leaf or a leaf decomposer node.
@@ -629,7 +659,7 @@ class Plan(FreezableObject, HasOptionalUID):
             raise RegistryKeyAlreadyExistsError(uid=new_node.uid)
         if new_node.node_id_context is None:
             new_node.node_id_context = self.node_id_context
-        if isinstance(new_node,Task):
+        if isinstance(new_node, Task):
             if not new_node.description.uid in self.tasks_by_UID:
                 self.tasks_by_UID[new_node.description.uid] = new_node
             if new_node.task_description_id_context is None:
@@ -681,6 +711,13 @@ class Plan(FreezableObject, HasOptionalUID):
 
     # @override
     def set_matching_deep_copy(self, other: Self, memo):
+        """takes a raw instance of the Plan and
+        fills its fields from this instance in the context of a deep copy.
+
+        :param other: the raw instance
+        :param memo: a blackbox used internally by the copy package.
+        See https://docs.python.org/3/library/copy.html#object.__deepcopy__for more information
+        """
         super().set_matching_deep_copy(other, memo)
         other.nodes_by_UID = copy.deepcopy(self.nodes_by_UID, memo)
         other.tasks_by_UID = copy.deepcopy(self.tasks_by_UID, memo)

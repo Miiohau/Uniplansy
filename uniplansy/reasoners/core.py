@@ -12,10 +12,11 @@ from uniplansy.reasoners.considerations.core import ReasonerConsideration
 from uniplansy.reasoners.graph import ReasonerBuilder
 from uniplansy.util.has_uid import HasRequiredUID
 from uniplansy.util.id_registry import IDRegistry
+from uniplansy.util.global_type_vars import World_Type
 
 #TODO: (after upgrading to python 3.12) Remove convert to new Type Parameter Syntax
 Reasoner_Update_Context_Type: TypeVar = TypeVar('Reasoner_Update_Context_Type')
-World_Type: TypeVar = TypeVar('World_Type')
+
 
 
 
@@ -103,7 +104,7 @@ class Reasoner(Generic[Reasoner_Update_Context_Type,World_Type],HasRequiredUID,m
         """handles self-caused errors leaving the think method. In general subclasses shouldn't override this method instead they should handle the error inside the think method."""
         self.handle_self_caused_errors(update_context, error)
 
-    def sense(self, world:World_Type, update_context:Reasoner_Update_Context_Type) -> Reasoner_Update_Context_Type:
+    def sense(self, world: World_Type, update_context:Reasoner_Update_Context_Type) -> Reasoner_Update_Context_Type:
         """updates the internal state of the Reasoner and adds notes to update_context"""
         if not self.state.is_finalized_state:
             can_run = True

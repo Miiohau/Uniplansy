@@ -19,6 +19,7 @@ class RegistryKeyError(ValueError):
     UID_REGEX: str = "<key>"
     pass
 
+
 class RegistryKeyNotFoundError(RegistryKeyError):
     """an error raised a key isn't found in an IDRegistry"""
 
@@ -38,8 +39,9 @@ class RegistryKeyAlreadyExistsError(RegistryKeyError):
 #TODO: (after upgrading to python 3.12) Remove TypeVars and convert to new Type Parameter Syntax
 Registered_Object = TypeVar('Registered_Object')
 
+
 @dataclass
-class IDRegistry(Generic[Registered_Object],HasRequiredUID):
+class IDRegistry(Generic[Registered_Object], HasRequiredUID):
     """a registry of objects with unique IDs.
 
     register(method): registers an object under a unique ID
@@ -98,7 +100,7 @@ class IDRegistry(Generic[Registered_Object],HasRequiredUID):
         """
         return uid in self._registry
 
-    def fetch(self, uid:str) -> Optional[Registered_Object]:
+    def fetch(self, uid: str) -> Optional[Registered_Object]:
         """fetch an object from the registry.
 
         may be None if the object has been retired.
@@ -110,7 +112,7 @@ class IDRegistry(Generic[Registered_Object],HasRequiredUID):
             raise RegistryKeyNotFoundError(uid=uid)
         return self._registry[uid]
 
-    def retire_referred_object(self, uid:str):
+    def retire_referred_object(self, uid: str):
         """retires an object from the registry.
 
         :param uid: the ID of the object to be retired
