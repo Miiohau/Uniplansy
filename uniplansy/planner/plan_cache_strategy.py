@@ -30,3 +30,14 @@ class PlanCacheStrategy(metaclass=ABCMeta):
     def load_plans(self, planning_context: PlanningContext):
         pass
 
+class MaybeWantsToKnowPlanCacheStrategy(metaclass=ABCMeta):
+
+    def introduce_plan_cache_strategy(self, plan_cache_strategy: PlanCacheStrategy):
+        """introduces a PlanCacheStrategy to this class which it may save.
+
+        The intended use of a saved PlanCacheStrategy is to request offloaded plans be
+        reloaded back into memory
+        :param plan_cache_strategy: the plan_cache_strategy being introduced
+        """
+        pass
+

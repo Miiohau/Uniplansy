@@ -5,7 +5,7 @@ tasks (package): TODO: fill out
 reasoner (package): TODO: fill out
 plans (package): TODO: fill out
 planner (package): the core package dealing with the classes and Strategies needed to run the planning algorithm
-decomposers (package): TODO: fill out
+decomposers (package): Decomposers are knowledge experts that can decompose a plan typically by decomposing Tasks within that plan.
 """
 #how to do optional dependencies notes
 #to select between modules or only expose a module if optional dependency is installed

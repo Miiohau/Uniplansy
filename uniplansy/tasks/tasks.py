@@ -57,7 +57,7 @@ class TaskDescription(HasRequiredUID):
 @dataclass
 class Task(PlanGraphNode):
     """TODO: Docstring for Task."""
-    description:TaskDescription
+    description: TaskDescription
     task_description_id_context: Optional[IDRegistry[TaskDescription]] = field(default=None, init=False)
     motivation: float | Fraction = 0.0
     estimated_cost: float | Fraction = 0.0
@@ -130,6 +130,12 @@ class Task(PlanGraphNode):
         del self.__dict__['task_description_id_context_id']
         self.description = self.task_description_id_context.fetch(state['description_id'])
         del self.__dict__['description_id']
+
+    def __str__(self):
+        return ("description:" + str(self.description) + " uid:" + str(self.uid) +
+                "motivation:" + str(self.motivation) + "estimated_cost:" + str(self.estimated_cost) +
+                "min_cost:" + str(self.min_cost) + "max_cost:" + str(self.max_cost) +
+                "satisfied_percentage:" + str(self.satisfied_percentage))
 
     if __debug__:
         NO_SPECIAL_VALUES_ALLOWED_ATTRIBUTES: ClassVar[list[str]] = ['motivation', 'estimated_cost', 'min_cost',

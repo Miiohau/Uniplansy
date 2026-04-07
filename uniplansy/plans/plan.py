@@ -194,6 +194,9 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
             return False
         return self.are_equal(other, dict())
 
+    def __str__(self):
+        return str(self.uid)
+
 
 @dataclass(frozen=True)
 class PlanDeltas:

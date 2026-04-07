@@ -10,10 +10,11 @@ from uniplansy.util.uid_suppliers.uid_supplier import GUIDSupplier
 class RandomGUIDSupplier(GUIDSupplier):
     """a guid supplier that uses a random number generator to generate a guid
 
-    this guid supplier will expand its random range if the chance of a collision roughly exceeds collision_chance
+    this guid supplier will expand its random range if the chance of a collision has happened
+     roughly exceeds collision_chance
     TODO:finish docstring"""
 
-    def __init__(self, start_max: int = 4294967296, collision_chance:float = .5, seed: Optional[int] = None):
+    def __init__(self, start_max: int = 4294967296, collision_chance: float = .5, seed: Optional[int] = None):
         super().__init__()
         self.max: int = start_max
         self.collision_chance: float = collision_chance
@@ -33,8 +34,8 @@ class ThreadedRandomGUIDSupplier(GUIDSupplier):
     """a version of RandomGUIDSupplier that may be faster in multithreaded environments because
     each thread has it own Random instance.
 
-    like RandomGUIDSupplier, ThreadedRandomGUIDSupplier will expand its random range if the chance of a collision
-    roughly exceeds collision_chance.
+    like RandomGUIDSupplier, ThreadedRandomGUIDSupplier will expand its random range if the chance of
+    a collision has happened roughly exceeds collision_chance.
     TODO:finish docstring"""
 
     def __init__(self, start_max: int = 4294967296, collision_chance:float = .5, seed_prefix: Optional[int] = None):

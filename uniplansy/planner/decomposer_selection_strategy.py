@@ -11,12 +11,14 @@ from typing import Optional, List, Tuple
 
 from uniplansy.decomposers.core import Decomposer, decomposer_registry
 from uniplansy.planner.core import PlanCacheStrategy, PlanContext
+from uniplansy.planner.plan_cache_strategy import MaybeWantsToKnowPlanCacheStrategy
 from uniplansy.plans.plan import PlanDeltas
 from uniplansy.plans.plan_comparison_strategy import PlanComparisonStrategy
+from uniplansy.util.global_type_vars import World_Type
 from uniplansy.util.id_registry import RegistryKeyNotFoundError
 
 
-class DecomposerSelectionStrategy(metaclass=ABCMeta):
+class DecomposerSelectionStrategy(MaybeWantsToKnowPlanCacheStrategy, metaclass=ABCMeta):
     """a DecomposerSelectionStrategy selects a decomposer to apply to a plan
 
     select_decomposer(method): selects a decomposer to apply to the plan
@@ -24,17 +26,11 @@ class DecomposerSelectionStrategy(metaclass=ABCMeta):
     which it may save.
     """
 
-    def introduce_plan_cache_strategy(self, plan_cache_strategy: PlanCacheStrategy):
-        """introduces a PlanCacheStrategy to the DecomposerSelectionStrategy which it may save.
-
-        :param plan_cache_strategy: the plan_cache_strategy being introduced
-        """
-        pass
-
     @abstractmethod
-    def select_decomposer(self, context: PlanContext, decomposers: set[Decomposer]) -> Optional[Decomposer]:
+    def select_decomposer(self, context: PlanContext, world: World_Type, decomposers: set[Decomposer]) -> Optional[Decomposer]:
         """selects a decomposer to apply to the plan
 
+        :param world: the world being planned in
         :param context: the plan context of the plan
         :param decomposers: the set of all the decomposers
         :return: the selected decomposer or None if there are no applicable decomposers
@@ -50,7 +46,7 @@ class GreedyDecomposerSelectionStrategy(DecomposerSelectionStrategy):
     def __init__(self, plan_comparison_strategy: PlanComparisonStrategy):
         self.plan_comparison_strategy = plan_comparison_strategy
 
-    def select_decomposer(self, context: PlanContext, decomposers: set[Decomposer]) -> Optional[Decomposer]:
+    def select_decomposer(self, context: PlanContext, world: World_Type, decomposers: set[Decomposer]) -> Optional[Decomposer]:
         if PlanContext.plan is None:
             return None
         if not (GreedyDecomposerSelectionStrategy.heap_key in PlanContext.notes.keys()):
@@ -76,6 +72,7 @@ class GreedyDecomposerSelectionStrategy(DecomposerSelectionStrategy):
         return selected_decomposer
 
 # standard PlanningStrategies
+# TODO: create these classes
 # Full Partial Initial Final
 # Filter
 # Composite (full)

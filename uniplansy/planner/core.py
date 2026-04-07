@@ -16,7 +16,7 @@ from typing import List, Dict, Any, Optional, Generic
 from uniplansy.decomposers.core import Decomposer
 from uniplansy.planner.plan_cache_strategy import PlanCacheStrategy
 from uniplansy.planner.plan_selection_strategy import FullPlanSelectionStrategy
-from uniplansy.planner.planning_strategy import PlanningStrategy
+from uniplansy.planner.planning_strategy import FullPlanningStrategy
 from uniplansy.planner.stopping_strategy import StoppingStrategy
 from uniplansy.plans.plan import Plan, PlanGraphNode
 from uniplansy.reasoners.graph import ReasonerBuilder
@@ -83,7 +83,7 @@ class Planner(Generic[World_Type]):
     """
 
     def __init__(self,
-                 planning_strategy: PlanningStrategy,
+                 planning_strategy: FullPlanningStrategy,
                  stopping_strategy: StoppingStrategy,
                  final_plan_selection_strategy: FullPlanSelectionStrategy,
                  cache_strategy: PlanCacheStrategy,
