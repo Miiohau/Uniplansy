@@ -2,9 +2,6 @@
 """
 from abc import ABCMeta, abstractmethod
 
-from uniplansy.util.uid_suppliers.counter_based.thread_local_guid_supplier import ThreadLocalGuidSupplier
-
-
 class UIDSupplier(metaclass=ABCMeta):
     """A UIDSupplier creates unique IDs for use in IDRegistries or PersistenceManagers
 
@@ -33,4 +30,3 @@ class LocalUIDSupplier(UIDSupplier, metaclass=ABCMeta):
     This is a marker interface for UIDSupplier that explicitly don't guarantee
     the ids generated are unique across different instances"""
 
-default_guid_supplier = ThreadLocalGuidSupplier()

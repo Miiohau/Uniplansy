@@ -10,8 +10,7 @@ from abc import ABCMeta, abstractmethod
 from typing import Optional, List, Tuple
 
 from uniplansy.decomposers.core import Decomposer, decomposer_registry
-from uniplansy.planner.core import PlanCacheStrategy, PlanContext
-from uniplansy.planner.plan_cache_strategy import MaybeWantsToKnowPlanCacheStrategy
+from uniplansy.planner.base import PlanContext, MaybeWantsToKnowPlanCacheStrategy
 from uniplansy.plans.plan import PlanDeltas
 from uniplansy.plans.plan_comparison_strategy import PlanComparisonStrategy
 from uniplansy.util.global_type_vars import World_Type

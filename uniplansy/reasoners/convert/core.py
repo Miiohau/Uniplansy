@@ -61,6 +61,10 @@ class AndPlanGraphNodeToReasonerStrategy(PlanGraphNodeToReasonerStrategy):
         )
         for current_child in current_node.children:
             and_builder.uid.append(node_id_to_builder_id[current_child.uid])
+        if isinstance(current_node, Task):
+            and_builder.preferred_name = current_node.description.human_understandable_string
+        else:
+            and_builder.preferred_name = current_node.uid
         return and_builder
 
 
@@ -75,6 +79,10 @@ class OrPlanGraphNodeToReasonerStrategy(PlanGraphNodeToReasonerStrategy):
         )
         for current_child in current_node.children:
             or_builder.uid.append(node_id_to_builder_id[current_child.uid])
+        if isinstance(current_node, Task):
+            or_builder.preferred_name = current_node.description.human_understandable_string
+        else:
+            or_builder.preferred_name = current_node.uid
         return or_builder
 
 
@@ -89,6 +97,7 @@ class AndConvertionFinalizationStrategy(ConvertionFinalizationStrategy):
         )
         for current_child in roots:
             and_builder.uid.append(node_id_to_builder_id[current_child.uid])
+        and_builder.preferred_name = "root"
         return and_builder
 
 
@@ -103,6 +112,7 @@ class OrConvertionFinalizationStrategy(ConvertionFinalizationStrategy):
         )
         for current_child in roots:
             or_builder.uid.append(node_id_to_builder_id[current_child.uid])
+        or_builder.preferred_name = "root"
         return or_builder
 
 class Converter:
@@ -153,7 +163,7 @@ class Converter:
         roots: Set[PlanGraphNode] = set()
         while len(queue) > 0:
             current_node = queue.popleft()
-            current_builder: ReasonerBuilder = self._create_builder(current_node,node_id_to_builder_id)
+            current_builder: ReasonerBuilder = self._create_builder(current_node, node_id_to_builder_id)
             if current_builder.uid is None:
                 current_builder.fill_unset_fields(id_registry=reasoner_id_registry)
             reasoner_id_registry.register(current_builder.uid, current_builder)

@@ -12,10 +12,9 @@ from dataclasses import dataclass
 from typing import Optional, Set, List, Iterable
 
 from uniplansy.decomposers.core import Decomposer, decomposer_registry
-from uniplansy.planner.core import PlanCacheStrategy, PlanningContext, PlanContext
+from uniplansy.planner.base import PlanningContext, PlanContext, PlanningStrategy, PlanCacheStrategy
 from uniplansy.planner.decomposer_selection_strategy import DecomposerSelectionStrategy
-from uniplansy.planner.plan_cache_strategy import MaybeWantsToKnowPlanCacheStrategy
-from uniplansy.planner.plan_selection_strategy import FullPlanSelectionStrategy, CanPrepopulateTheCasheOfPlans
+from uniplansy.planner.plan_selection_strategy import FullPlanSelectionStrategy
 from uniplansy.plans.plan import Plan, PlanDeltas
 from uniplansy.plans.plan_comparison_strategy import PlanComparisonStrategy, PlanValueToken
 from uniplansy.util.global_type_vars import World_Type
@@ -24,12 +23,6 @@ from uniplansy.util.id_registry import RegistryKeyNotFoundError
 
 # TODO: make a compositable PlanningStrategy by having the plan method equivalent take a list parameter of
 #  Plan, Decomposer pairs and return a list of Plan, Decomposer pairs
-class PlanningStrategy(MaybeWantsToKnowPlanCacheStrategy, CanPrepopulateTheCasheOfPlans, metaclass=ABCMeta):
-    """a PlanningStrategy can be used to select a Plan Decomposer pair
-
-    introduce_plan_cache_strategy(method):introduces a PlanCacheStrategy to the PlanningStrategy which it may save.
-    prepopulate_plan_cache(method): prepopulates the cache values of the plan
-    """
 
 
 class FullPlanningStrategy(PlanningStrategy, metaclass=ABCMeta):
@@ -354,7 +347,7 @@ class GreedyPlanningStrategy(FullPlanningStrategy,
             elif cur_token == PlanValueToken.max_cost:
                 plan_to_populate.max_cost()
             elif cur_token == PlanValueToken.motivation:
-                plan_to_populate.motivation()
+                plan_to_populate.total_motivation()
             elif cur_token == PlanValueToken.satisfied_percentage_average:
                 plan_to_populate.average_satisfied_percentage()
             elif cur_token == PlanValueToken.satisfied_percentage_median:

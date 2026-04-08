@@ -71,12 +71,15 @@ class FreezableObject(CustomCopyable):
         :param value: The value of the attribute.
         :raises FrozenInstanceError: if they are modified while frozen
         """
-        if (self.frozen and not name.startswith(self._cache_prefix)
-                and not (name == self._temporarily_unfrozen_attribute)):
-            raise FrozenInstanceError()
-        super().__setattr__(name, value)
-        if name == self._temporarily_unfrozen_attribute:
-            self._temporarily_unfrozen_attribute = None
+        if (name == "frozen") or (name == "_cache_prefix") or (name == "_temporarily_unfrozen_attribute"):
+            super().__setattr__(name, value)
+        else:
+            if (self.frozen and not name.startswith(self._cache_prefix)
+                    and not (name == self._temporarily_unfrozen_attribute)):
+                raise FrozenInstanceError()
+            super().__setattr__(name, value)
+            if name == self._temporarily_unfrozen_attribute:
+                self._temporarily_unfrozen_attribute = None
 
     # @override
     def __delattr__(self, name):
@@ -87,9 +90,12 @@ class FreezableObject(CustomCopyable):
         :param name: The name of the attribute.
         :raises FrozenInstanceError: if they are modified while frozen
         """
-        if (self.frozen and not name.startswith(self._cache_prefix)
-                and not (name == self._temporarily_unfrozen_attribute)):
-            raise FrozenInstanceError()
-        super().__delattr__(name)
-        if name == self._temporarily_unfrozen_attribute:
-            self._temporarily_unfrozen_attribute = None
+        if (name == "frozen") or (name == "_cache_prefix") or (name == "_temporarily_unfrozen_attribute"):
+            super().__delattr__(name)
+        else:
+            if (self.frozen and not name.startswith(self._cache_prefix)
+                    and not (name == self._temporarily_unfrozen_attribute)):
+                raise FrozenInstanceError()
+            super().__delattr__(name)
+            if name == self._temporarily_unfrozen_attribute:
+                self._temporarily_unfrozen_attribute = None

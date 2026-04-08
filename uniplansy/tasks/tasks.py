@@ -1,13 +1,14 @@
 #TODO: (after upgrading to python 3.12) uncomment @override Decorators
+from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 from decimal import Decimal
 from fractions import Fraction
 from math import isfinite
-from typing import Any, Self, Optional, ClassVar
+from typing import Any, Self, Optional, ClassVar, Iterable, Generator, List
 
 from immutabledict import immutabledict
 
-from uniplansy.plans.plan import PlanGraphNode
+from uniplansy.plans.plan_graph_node import PlanGraphNode
 from uniplansy.util.has_uid import HasRequiredUID
 from uniplansy.util.id_registry import IDRegistry, id_registry_registry
 
@@ -54,16 +55,43 @@ class TaskDescription(HasRequiredUID):
     def __deepcopy__(self, memo):
         return self
 
-@dataclass
+@dataclass(init=False)
 class Task(PlanGraphNode):
     """TODO: Docstring for Task."""
     description: TaskDescription
-    task_description_id_context: Optional[IDRegistry[TaskDescription]] = field(default=None, init=False)
+    task_description_id_context: Optional[IDRegistry[TaskDescription]] = field(default=None)
     motivation: float | Fraction = 0.0
     estimated_cost: float | Fraction = 0.0
     min_cost: float | Fraction = 0.0
     max_cost: float | Fraction = float("inf")
     satisfied_percentage: float | Fraction = 0.0
+
+    def __init__(self,
+                 uid: str,
+                 description: TaskDescription,
+                 node_id_context: Optional[IDRegistry[PlanGraphNode]] = None,
+                 task_description_id_context: Optional[IDRegistry[TaskDescription]] = None,
+                 motivation: float | Fraction = 0.0,
+                 estimated_cost: float = 0.0,
+                 min_cost: float | Fraction = 0.0,
+                 max_cost: float | Fraction = float("inf"),
+                 cache_prefix: str = "_cache",
+                 *,
+                 children: Optional[set[PlanGraphNode]] = None,
+                 parents: Optional[set[PlanGraphNode]] = None,
+                 ):
+        super().__init__(uid=uid,
+                         node_id_context=node_id_context,
+                         cache_prefix=cache_prefix,
+                         children=children,
+                         parents=parents)
+        self.description = description
+        self.task_description_id_context = task_description_id_context
+        self.motivation = motivation
+        self.estimated_cost = estimated_cost
+        self.min_cost = min_cost
+        self.max_cost = max_cost
+
 
     def get_clamped_satisfied_percentage(self,
                                          min_value: float | Fraction,
@@ -139,10 +167,28 @@ class Task(PlanGraphNode):
 
     if __debug__:
         NO_SPECIAL_VALUES_ALLOWED_ATTRIBUTES: ClassVar[list[str]] = ['motivation', 'estimated_cost', 'min_cost',
-                                                                     'max_cost','satisfied_percentage']
+                                                                     'satisfied_percentage']
 
         def __setattr__(self, name, value):
             if name in Task.NO_SPECIAL_VALUES_ALLOWED_ATTRIBUTES:
                 if isinstance(value, float) and not isfinite(value):
                     raise TypeError(f"{value} is not finite. floats assigned to {name} must be finite")
             super().__setattr__(name, value)
+
+class TaskFilter(metaclass=ABCMeta):
+
+    @abstractmethod
+    def filter_tasks_generator(self, tasks : Iterable[Task]) -> Generator[Task, None, None]:
+        """filter tasks based on a TaskFilter. Returns a generator of Tasks"""
+        pass
+
+    def accept_any_task(self, tasks : Iterable[Task]) -> bool:
+        """returns true if any of the tasks in tasks are accepted by this filter"""
+        task_filter = self.filter_tasks_generator(tasks)
+        first = next(task_filter,None)
+        task_filter.close()
+        return first is not None
+
+    def filter_tasks_list(self, tasks : Iterable[Task]) -> List[Task]:
+        """filter tasks based on a TaskFilter. Returns a List of Tasks"""
+        return list(self.filter_tasks_generator(tasks))

@@ -9,7 +9,8 @@ id_registry_registry(global): the global registry of IDIDRegistries
 from dataclasses import dataclass, field
 from typing import TypeVar, Generic, Optional, Any
 
-from uniplansy.util.uid_suppliers.uid_supplier import default_guid_supplier, UIDSupplier
+from uniplansy.util.uid_suppliers.default_guid_supplier import default_guid_supplier
+from uniplansy.util.uid_suppliers.uid_supplier import UIDSupplier
 from uniplansy.util.has_uid import HasRequiredUID
 
 
@@ -41,7 +42,7 @@ Registered_Object = TypeVar('Registered_Object')
 
 
 @dataclass
-class IDRegistry(Generic[Registered_Object], HasRequiredUID):
+class IDRegistry(HasRequiredUID, Generic[Registered_Object]):
     """a registry of objects with unique IDs.
 
     register(method): registers an object under a unique ID

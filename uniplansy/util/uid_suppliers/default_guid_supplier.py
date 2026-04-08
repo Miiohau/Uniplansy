@@ -1,0 +1,3 @@
+from uniplansy.util.uid_suppliers.counter_based.thread_local_guid_supplier import ThreadLocalGuidSupplier
+
+default_guid_supplier = ThreadLocalGuidSupplier()

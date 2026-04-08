@@ -15,7 +15,7 @@ class HasUID(Protocol):
     uid: str | Optional[str]
 
 
-class HasOptionalUID(Protocol,HasUID, CustomCopyable):
+class HasOptionalUID(HasUID, CustomCopyable, Protocol):
     """a data protocol for having an optional uid"""
     uid: Optional[str] = None
 
@@ -23,6 +23,6 @@ class HasOptionalUID(Protocol,HasUID, CustomCopyable):
         super().set_matching_deep_copy(other, memo)
         other.uid = None
 
-class HasRequiredUID(Protocol,HasUID):
+class HasRequiredUID(HasUID, Protocol):
     """a data protocol for having a required uid"""
     uid: str

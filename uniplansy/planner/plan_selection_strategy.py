@@ -21,23 +21,11 @@ from abc import ABCMeta, abstractmethod
 from random import Random
 from typing import List, Set, Optional, Iterable, Tuple
 
+from uniplansy.planner.base import MaybeWantsToKnowPlanCacheStrategy, CanPrepopulateTheCasheOfPlans
 from uniplansy.planner.core import PlanCacheStrategy, PlanningContext
-from uniplansy.planner.plan_cache_strategy import MaybeWantsToKnowPlanCacheStrategy
 from uniplansy.plans.plan import Plan
 from uniplansy.plans.plan_comparison_strategy import PlanComparisonStrategy, PlanValueToken
 from uniplansy.util.global_type_vars import World_Type
-
-class CanPrepopulateTheCasheOfPlans(metaclass=ABCMeta):
-
-    def prepopulate_plan_cache(self, plan_to_populate: Plan):
-        """prepopulates the cache values of the plan
-
-        This method is currently used by the planner to prepopulate the cache values of the plan to make plan equality
-        tests more efficient (prepopulating the values are O(N) while full equality testing is potentially
-        O(2^N) or worse).
-        :param plan_to_populate: the plan to prepopulate
-        """
-        pass
 
 class PlanSelectionStrategy(MaybeWantsToKnowPlanCacheStrategy, CanPrepopulateTheCasheOfPlans, metaclass=ABCMeta):
     """TODO: docstring"""

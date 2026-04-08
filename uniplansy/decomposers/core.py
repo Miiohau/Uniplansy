@@ -13,18 +13,19 @@ from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
-from typing import List, Any, Self, Generic
+from typing import List, Any, Self, Generic, Optional
 
 from immutabledict import immutabledict
 
-from uniplansy.plans.plan import Plan, PlanGraphNode, PlanDeltas
+from uniplansy.plans.plan import Plan, PlanDeltas
+from uniplansy.plans.plan_graph_node import PlanGraphNode
 from uniplansy.reasoners.graph import ReasonerTemplate
 from uniplansy.util.global_type_vars import World_Type
 from uniplansy.util.has_uid import HasRequiredUID
 from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError, id_registry_registry
 
 
-@dataclass
+@dataclass(init=False)
 class DecomposerNode(PlanGraphNode):
     """a DecomposerNode holds information about how a Decomposer was applied to a plan
 
@@ -34,6 +35,27 @@ class DecomposerNode(PlanGraphNode):
     """
     node_decomposer: Decomposer
     notes: immutabledict[str, Any] = immutabledict({})
+
+    def __init__(self,
+                 uid: str,
+                 node_decomposer: Decomposer,
+                 notes: Optional[dict[str, Any] | immutabledict[str, Any]] = None,
+                 node_id_context: Optional[IDRegistry[PlanGraphNode]] = None,
+                 cache_prefix: str = "_cache",
+                 *,
+                 children: Optional[set[PlanGraphNode]] = None,
+                 parents: Optional[set[PlanGraphNode]] = None,
+                 ):
+        super().__init__(uid=uid,
+                         node_id_context=node_id_context,
+                         cache_prefix=cache_prefix,
+                         children=children,
+                         parents=parents)
+        self.node_decomposer = node_decomposer
+        if notes is None:
+            self.notes = immutabledict({})
+        else:
+            self.notes = immutabledict(notes)
 
     # @override
     def set_matching_deep_copy(self, other: Self, memo):
@@ -69,7 +91,7 @@ class DecomposerNode(PlanGraphNode):
 
 
 # TODO: proof read the doc because this is very important concept for users of the library
-class Decomposer(Generic[World_Type], HasRequiredUID, metaclass=ABCMeta):
+class Decomposer(HasRequiredUID, Generic[World_Type], metaclass=ABCMeta):
     """knowledge expert that can decompose a plan typically by decomposing Tasks within that plan.
 
     abstractly a Decomposer represents a course of action
