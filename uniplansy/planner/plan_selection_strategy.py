@@ -175,7 +175,7 @@ class ArbitraryInitialPartialPlanSelectionStrategy(InitialPartialPlanSelectionSt
 
     def start_iterable(self, planning_context: PlanningContext, world: World_Type, finalizing: bool = False) -> Iterable[Plan]:
         return (current_plan_context.plan
-                for current_plan_context in planning_context.plan_by_uid.values()
+                for current_plan_context in planning_context.plan_context_by_uid.values()
                 if (current_plan_context is not None) and
                 (current_plan_context.plan is not None))
 
@@ -283,7 +283,7 @@ class GreedyPlanSelectionStrategy(FullPlanSelectionStrategy,
     def start_iterable(self, planning_context: PlanningContext, world: World_Type, finalizing: bool = False) -> Iterable[Plan]:
         if finalizing:
             active_plans: List[Plan] = [current_plan_context.plan
-                                        for current_plan_context in planning_context.plan_by_uid.values()
+                                        for current_plan_context in planning_context.plan_context_by_uid.values()
                                         if (current_plan_context is not None) and
                                         (current_plan_context.plan is not None)]
             tuples_list: List[Tuple[Tuple, str]] = [(self.plan_comparison_strategy.plan_to_tuple_key(current_plan),
@@ -292,41 +292,41 @@ class GreedyPlanSelectionStrategy(FullPlanSelectionStrategy,
             heapq.heapify(tuples_list)
             while len(tuples_list) >= 1:
                 selected_tuple: Tuple[Tuple, str] = heapq.heappop(tuples_list)
-                yield planning_context.plan_by_uid[selected_tuple[1]].plan
+                yield planning_context.plan_context_by_uid[selected_tuple[1]].plan
         else:
             if len(self.min_heap) == 0:
                 active_plans: List[Plan] = [current_plan_context.plan
-                                            for current_plan_context in planning_context.plan_by_uid.values()
+                                            for current_plan_context in planning_context.plan_context_by_uid.values()
                                             if (current_plan_context is not None) and
                                             (current_plan_context.plan is not None)]
                 self._add_plans_to_heap(active_plans)
             else:
-                new_plans: List[Plan] = [PlanningContext.plan_by_uid[curUID].plan
+                new_plans: List[Plan] = [PlanningContext.plan_context_by_uid[curUID].plan
                                          for curUID in planning_context.notes["new plan uids"]
-                                         if (PlanningContext.plan_by_uid[curUID] is not None) and
-                                         (PlanningContext.plan_by_uid[curUID].plan is not None)]
+                                         if (PlanningContext.plan_context_by_uid[curUID] is not None) and
+                                         (PlanningContext.plan_context_by_uid[curUID].plan is not None)]
                 self._add_plans_to_heap(new_plans)
             while True:
                 if len(self.min_heap) == 0:
                     active_plans: List[Plan] = [current_plan_context.plan
-                                                for current_plan_context in planning_context.plan_by_uid.values()
+                                                for current_plan_context in planning_context.plan_context_by_uid.values()
                                                 if (current_plan_context is not None) and
                                                 (current_plan_context.plan is not None)]
                     self._add_plans_to_heap(active_plans)
                 select_plan_tuple: tuple[tuple, str] = heapq.heappop(self.min_heap)
                 selected_uid: str = select_plan_tuple[1]
                 if ((self.plan_cache_strategy is not None) and
-                        ((planning_context.plan_by_uid[selected_uid] is None) or
-                         (planning_context.plan_by_uid[selected_uid].plan is None))):
+                        ((planning_context.plan_context_by_uid[selected_uid] is None) or
+                         (planning_context.plan_context_by_uid[selected_uid].plan is None))):
                     self.plan_cache_strategy.load_plan(selected_uid, planning_context)
-                if ((planning_context.plan_by_uid[selected_uid] is not None) and
-                        (planning_context.plan_by_uid[selected_uid].plan is not None)):
-                    yield planning_context.plan_by_uid[selected_uid].plan
+                if ((planning_context.plan_context_by_uid[selected_uid] is not None) and
+                        (planning_context.plan_context_by_uid[selected_uid].plan is not None)):
+                    yield planning_context.plan_context_by_uid[selected_uid].plan
 
     def select_plan(self, planning_context: PlanningContext, world: World_Type, finalizing: bool = False) -> Plan:
         if finalizing:
             active_plans: List[Plan] = [current_plan_context.plan
-                                        for current_plan_context in planning_context.plan_by_uid.values()
+                                        for current_plan_context in planning_context.plan_context_by_uid.values()
                                         if (current_plan_context is not None) and
                                         (current_plan_context.plan is not None)]
             tuples_list: List[Tuple[Tuple, str]] = [(self.plan_comparison_strategy.plan_to_tuple_key(current_plan),
@@ -337,45 +337,45 @@ class GreedyPlanSelectionStrategy(FullPlanSelectionStrategy,
                 select_plan_tuple: tuple[tuple, str] = min(tuples_list)
                 select_uid = select_plan_tuple[1]
                 if ((self.plan_cache_strategy is not None) and
-                        ((planning_context.plan_by_uid[select_uid] is None) or
-                         (planning_context.plan_by_uid[select_uid].plan is None))):
+                        ((planning_context.plan_context_by_uid[select_uid] is None) or
+                         (planning_context.plan_context_by_uid[select_uid].plan is None))):
                     self.plan_cache_strategy.load_plan(select_uid, planning_context)
-                if ((planning_context.plan_by_uid[select_uid] is not None) and
-                        (planning_context.plan_by_uid[select_uid].plan is not None)):
-                    select_plan = planning_context.plan_by_uid[select_uid].plan
+                if ((planning_context.plan_context_by_uid[select_uid] is not None) and
+                        (planning_context.plan_context_by_uid[select_uid].plan is not None)):
+                    select_plan = planning_context.plan_context_by_uid[select_uid].plan
                 else:
                     tuples_list.remove(select_plan_tuple)
             return select_plan
         else:
             if len(self.min_heap) == 0:
                 active_plans: List[Plan] = [current_plan_context.plan
-                                            for current_plan_context in planning_context.plan_by_uid.values()
+                                            for current_plan_context in planning_context.plan_context_by_uid.values()
                                             if (current_plan_context is not None) and
                                             (current_plan_context.plan is not None)]
                 self._add_plans_to_heap(active_plans)
             else:
-                new_plans: List[Plan] = [PlanningContext.plan_by_uid[curUID].plan
+                new_plans: List[Plan] = [PlanningContext.plan_context_by_uid[curUID].plan
                                          for curUID in planning_context.notes["new plan uids"]
-                                         if (PlanningContext.plan_by_uid[curUID] is not None) and
-                                         (PlanningContext.plan_by_uid[curUID].plan is not None)]
+                                         if (PlanningContext.plan_context_by_uid[curUID] is not None) and
+                                         (PlanningContext.plan_context_by_uid[curUID].plan is not None)]
                 self._add_plans_to_heap(new_plans)
             select_plan: Optional[Plan] = None
             while select_plan is None:
                 if len(self.min_heap) == 0:
                     active_plans: List[Plan] = [current_plan_context.plan
-                                                for current_plan_context in planning_context.plan_by_uid.values()
+                                                for current_plan_context in planning_context.plan_context_by_uid.values()
                                                 if (current_plan_context is not None) and
                                                 (current_plan_context.plan is not None)]
                     self._add_plans_to_heap(active_plans)
                 select_plan_tuple: tuple[tuple, str] = heapq.heappop(self.min_heap)
                 select_uid = select_plan_tuple[1]
                 if ((self.plan_cache_strategy is not None) and
-                        ((planning_context.plan_by_uid[select_uid] is None) or
-                         (planning_context.plan_by_uid[select_uid].plan is None))):
+                        ((planning_context.plan_context_by_uid[select_uid] is None) or
+                         (planning_context.plan_context_by_uid[select_uid].plan is None))):
                     self.plan_cache_strategy.load_plan(select_uid, planning_context)
-                if ((planning_context.plan_by_uid[select_uid] is not None) and
-                        (planning_context.plan_by_uid[select_uid].plan is not None)):
-                    select_plan = planning_context.plan_by_uid[select_uid].plan
+                if ((planning_context.plan_context_by_uid[select_uid] is not None) and
+                        (planning_context.plan_context_by_uid[select_uid].plan is not None)):
+                    select_plan = planning_context.plan_context_by_uid[select_uid].plan
             return select_plan
 
     def select_plan_from_iterable(
@@ -393,12 +393,12 @@ class GreedyPlanSelectionStrategy(FullPlanSelectionStrategy,
             select_plan_tuple: tuple[tuple, str] = min(tuples_list)
             select_uid = select_plan_tuple[1]
             if ((self.plan_cache_strategy is not None) and
-                    ((planning_context.plan_by_uid[select_uid] is None) or
-                     (planning_context.plan_by_uid[select_uid].plan is None))):
+                    ((planning_context.plan_context_by_uid[select_uid] is None) or
+                     (planning_context.plan_context_by_uid[select_uid].plan is None))):
                 self.plan_cache_strategy.load_plan(select_uid, planning_context)
-            if ((planning_context.plan_by_uid[select_uid] is not None) and
-                    (planning_context.plan_by_uid[select_uid].plan is not None)):
-                select_plan = planning_context.plan_by_uid[select_uid].plan
+            if ((planning_context.plan_context_by_uid[select_uid] is not None) and
+                    (planning_context.plan_context_by_uid[select_uid].plan is not None)):
+                select_plan = planning_context.plan_context_by_uid[select_uid].plan
             else:
                 tuples_list.remove(select_plan_tuple)
         return select_plan

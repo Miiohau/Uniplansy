@@ -25,8 +25,10 @@ class PlanningContext:
     notes(attribute): a dictionary to hold misc data.
     notes["new plan uids"](attribute value): a list of the uids of the plans added in the last planning cycle"""
     root: UIDNode
-    uid_nodes_by_uid: Dict[str, UIDNode] = field(default_factory=dict)
-    plan_by_uid: Dict[str, Optional[PlanContext]] = field(default_factory=dict)
+    plan_uid_node_by_uid: Dict[str, UIDNode] = field(default_factory=dict)
+    decomposer_uid_node_by_uid: Dict[str, Dict[str, UIDNode]] = field(default_factory=dict)
+    plan_context_by_uid: Dict[str, Optional[PlanContext]] = field(default_factory=dict)
+    decomposer_context_by_uid: Dict[str, Dict[str, Optional[DecomposerContext]]] = field(default_factory=dict)
     notes: Dict[str, Any] = field(default_factory=dict)
 
 

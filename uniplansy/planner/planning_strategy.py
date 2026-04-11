@@ -35,7 +35,7 @@ class FullPlanningStrategy(PlanningStrategy, metaclass=ABCMeta):
 
     @abstractmethod
     def plan(self, planning_context: PlanningContext, world: World_Type, decomposers: set[Decomposer]) \
-            -> tuple[Plan, Decomposer]:
+            -> Optional[tuple[Plan, Optional[Decomposer]]]:
         """selects a plan and a decomposer
 
         :param world: the world being planed in
@@ -52,11 +52,11 @@ class PartialPlanningStrategy(PlanningStrategy, metaclass=ABCMeta):
     @abstractmethod
     def filter_plans(
             self,
-            plan_decomposer_pairs_to_filter: Iterable[tuple[Plan, Optional[Decomposer]]],
+            plan_decomposer_pairs_to_filter: Iterable[Optional[tuple[Plan, Optional[Decomposer]]]],
             planning_context: PlanningContext,
             world: World_Type,
             decomposers: set[Decomposer]
-    ) -> Iterable[tuple[Plan, Optional[Decomposer]]]:
+    ) -> Iterable[Optional[tuple[Plan, Optional[Decomposer]]]]:
         """filters the plan Decomposer tuple stream
 
         :param plan_decomposer_pairs_to_filter: the stream of plan Decomposer pairs
@@ -92,13 +92,14 @@ class PlanningFilterStrategy(PartialPlanningStrategy, metaclass=ABCMeta):
     @abstractmethod
     def filter_plans(
             self,
-            plan_decomposer_pairs_to_filter: Iterable[tuple[Plan, Optional[Decomposer]]],
+            plan_decomposer_pairs_to_filter: Iterable[Optional[tuple[Plan, Optional[Decomposer]]]],
             planning_context: PlanningContext,
             world: World_Type,
             decomposers: set[Decomposer]
-    ) -> Iterable[tuple[Plan, Optional[Decomposer]]]:
+    ) -> Iterable[Optional[tuple[Plan, Optional[Decomposer]]]]:
         for (current_plan, current_decomposer) in plan_decomposer_pairs_to_filter:
-            if self.accept_plan(current_plan, current_decomposer, planning_context, world, decomposers):
+            if ((current_plan is not None) and
+                    self.accept_plan(current_plan, current_decomposer, planning_context, world, decomposers)):
                 yield current_plan, current_decomposer
 
 
@@ -107,7 +108,7 @@ class InitialPartialPlanningStrategy(PlanningStrategy):
 
     @abstractmethod
     def start_iterable(self, planning_context: PlanningContext, world: World_Type, decomposers: set[Decomposer]) \
-            -> Iterable[tuple[Plan, Optional[Decomposer]]]:
+            -> Iterable[Optional[tuple[Plan, Optional[Decomposer]]]]:
         """starts the plan decomposer pairs stream
 
         :param planning_context: the planning context
@@ -123,11 +124,11 @@ class FinalPlanningStrategy(PlanningStrategy):
     @abstractmethod
     def select_plan_from_iterable(
             self,
-            plans_to_filter: Iterable[tuple[Plan, Optional[Decomposer]]],
+            plans_to_filter: Iterable[Optional[tuple[Plan, Optional[Decomposer]]]],
             planning_context: PlanningContext,
             world: World_Type,
             decomposers: set[Decomposer]
-    ) -> tuple[Plan, Decomposer]:
+    ) -> Optional[tuple[Plan, Optional[Decomposer]]]:
         """selects a plan Decomposer pair from the iterable
 
         :param plans_to_filter: the stream of plan Decomposer pairs
@@ -155,14 +156,14 @@ class DelegatingPlanningStrategy(FullPlanningStrategy):
         self.decomposer_selection_strategy.introduce_plan_cache_strategy(plan_cache_strategy)
 
     def plan(self, planning_context: PlanningContext, world: World_Type, decomposers: set[Decomposer]) \
-            -> tuple[Plan, Decomposer]:
+            -> Optional[tuple[Plan, Optional[Decomposer]]]:
         selected_plan: Optional[Plan] = None
         selected_decomposer: Optional[Decomposer] = None
         while (selected_plan is None) or (selected_decomposer is None):
             selected_plan = self.plan_selection_strategy.select_plan(planning_context, world)
             if selected_plan is not None:
                 selected_decomposer = self.decomposer_selection_strategy.select_decomposer(
-                    planning_context.plan_by_uid[selected_plan.uid],
+                    planning_context.plan_context_by_uid[selected_plan.uid],
                     world,
                     decomposers
                 )
@@ -171,7 +172,7 @@ class DelegatingPlanningStrategy(FullPlanningStrategy):
     def prepopulate_plan_cache(self, plan_to_populate: Plan):
         self.plan_selection_strategy.prepopulate_plan_cache(plan_to_populate)
 
-
+# todo: take advange of self.planning_context.notes["new decomposer uids"]
 class GreedyPlanningStrategy(FullPlanningStrategy,
                              InitialPartialPlanningStrategy,
                              FinalPlanningStrategy):
@@ -201,23 +202,23 @@ class GreedyPlanningStrategy(FullPlanningStrategy,
                 heapq.heappush(self.min_heap, plan_tuple)
 
     def start_iterable(self, planning_context: PlanningContext, world: World_Type, decomposers: set[Decomposer]) \
-            -> Iterable[tuple[Plan, Optional[Decomposer]]]:
+            -> Iterable[Optional[tuple[Plan, Optional[Decomposer]]]]:
         if len(self.min_heap) == 0:
             active_plans: List[Plan] = [current_plan_context.plan
-                                        for current_plan_context in planning_context.plan_by_uid.values()
+                                        for current_plan_context in planning_context.plan_context_by_uid.values()
                                         if (current_plan_context is not None) and
                                         (current_plan_context.plan is not None)]
             self._add_plans_to_heap(active_plans)
         else:
-            new_plans: List[Plan] = [PlanningContext.plan_by_uid[curUID].plan
+            new_plans: List[Plan] = [PlanningContext.plan_context_by_uid[curUID].plan
                                      for curUID in planning_context.notes["new plan uids"]
-                                     if (PlanningContext.plan_by_uid[curUID] is not None) and
-                                     (PlanningContext.plan_by_uid[curUID].plan is not None)]
+                                     if (PlanningContext.plan_context_by_uid[curUID] is not None) and
+                                     (PlanningContext.plan_context_by_uid[curUID].plan is not None)]
             self._add_plans_to_heap(new_plans)
         while True:
             if len(self.min_heap) == 0:
                 active_plans: List[Plan] = [current_plan_context.plan
-                                            for current_plan_context in planning_context.plan_by_uid.values()
+                                            for current_plan_context in planning_context.plan_context_by_uid.values()
                                             if (current_plan_context is not None) and
                                             (current_plan_context.plan is not None)]
                 self._add_plans_to_heap(active_plans)
@@ -226,36 +227,36 @@ class GreedyPlanningStrategy(FullPlanningStrategy,
             selected_decomposer_uid: str = select_plan_tuple[1][1]
             selected_decomposer: Optional[Decomposer] = None
             if ((self.plan_cache_strategy is not None) and
-                    ((planning_context.plan_by_uid[selected_plan_uid] is None) or
-                     (planning_context.plan_by_uid[selected_plan_uid].plan is None))):
+                    ((planning_context.plan_context_by_uid[selected_plan_uid] is None) or
+                     (planning_context.plan_context_by_uid[selected_plan_uid].plan is None))):
                 self.plan_cache_strategy.load_plan(selected_plan_uid, planning_context)
             if selected_decomposer_uid is not None:
                 try:
                     selected_decomposer = decomposer_registry.fetch(selected_decomposer_uid)
                 except RegistryKeyNotFoundError:
                     selected_decomposer = None
-            if planning_context.plan_by_uid[selected_plan_uid].plan is None:
+            if planning_context.plan_context_by_uid[selected_plan_uid].plan is None:
                 continue
-            if ((planning_context.plan_by_uid[selected_plan_uid] is not None) and
-                    (planning_context.plan_by_uid[selected_plan_uid].plan is not None)):
-                yield (planning_context.plan_by_uid[selected_plan_uid].plan,
+            if ((planning_context.plan_context_by_uid[selected_plan_uid] is not None) and
+                    (planning_context.plan_context_by_uid[selected_plan_uid].plan is not None)):
+                yield (planning_context.plan_context_by_uid[selected_plan_uid].plan,
                        selected_decomposer)
 
     def plan(self, planning_context: PlanningContext, world: World_Type, decomposers: set[Decomposer]) \
-            -> tuple[Plan, Decomposer]:
-        new_plans: List[Plan] = [PlanningContext.plan_by_uid[curUID].plan
+            -> Optional[tuple[Plan, Optional[Decomposer]]]:
+        new_plans: List[Plan] = [PlanningContext.plan_context_by_uid[curUID].plan
                                  for curUID in planning_context.notes["new plan uids"]
-                                 if (PlanningContext.plan_by_uid[curUID] is not None) and
-                                 (PlanningContext.plan_by_uid[curUID].plan is not None)]
+                                 if (PlanningContext.plan_context_by_uid[curUID] is not None) and
+                                 (PlanningContext.plan_context_by_uid[curUID].plan is not None)]
         self._add_plans_to_heap(new_plans)
         selected_plan: Optional[Plan] = None
         selected_decomposer: Optional[Decomposer] = None
         while (selected_plan is None) or (selected_decomposer is None):
             selected_plan_decomposer_tuple: tuple[tuple, tuple[str, Optional[str]]] = heapq.heappop(self.min_heap)
-            if ((planning_context.plan_by_uid[selected_plan_decomposer_tuple[1][0]] is None) or
-                    (planning_context.plan_by_uid[selected_plan_decomposer_tuple[1][0]].plan is None)):
+            if ((planning_context.plan_context_by_uid[selected_plan_decomposer_tuple[1][0]] is None) or
+                    (planning_context.plan_context_by_uid[selected_plan_decomposer_tuple[1][0]].plan is None)):
                 self.plan_cache_strategy.load_plan(selected_plan_decomposer_tuple[1][0], planning_context)
-            selected_plan_context: Optional[PlanContext] = planning_context.plan_by_uid[
+            selected_plan_context: Optional[PlanContext] = planning_context.plan_context_by_uid[
                 selected_plan_decomposer_tuple[1][0]
             ]
             if selected_plan_context is not None:
@@ -279,11 +280,11 @@ class GreedyPlanningStrategy(FullPlanningStrategy,
 
     def select_plan_from_iterable(
             self,
-            plans_to_filter: Iterable[tuple[Plan, Optional[Decomposer]]],
+            plans_to_filter: Iterable[Optional[tuple[Plan, Optional[Decomposer]]]],
             planning_context: PlanningContext,
             world: World_Type,
             decomposers: set[Decomposer]
-    ) -> tuple[Plan, Decomposer]:
+    ) -> Optional[tuple[Plan, Optional[Decomposer]]]:
         # todo: this is flawed because it assumes current_decomposer is not null and doesn't apply the deltas
         # tuples_list: List[tuple[tuple, tuple[str, Optional[str]]]] = [
         #    (
@@ -311,10 +312,10 @@ class GreedyPlanningStrategy(FullPlanningStrategy,
         while (selected_plan is None) or (selected_decomposer is None):
             selected_plan_decomposer_tuple: tuple[tuple, tuple[str, Optional[str]]] = min(tuples_list)
             tuples_list.remove(selected_plan_decomposer_tuple)
-            if ((planning_context.plan_by_uid[selected_plan_decomposer_tuple[1][0]] is None) or
-                    (planning_context.plan_by_uid[selected_plan_decomposer_tuple[1][0]].plan is None)):
+            if ((planning_context.plan_context_by_uid[selected_plan_decomposer_tuple[1][0]] is None) or
+                    (planning_context.plan_context_by_uid[selected_plan_decomposer_tuple[1][0]].plan is None)):
                 self.plan_cache_strategy.load_plan(selected_plan_decomposer_tuple[1][0], planning_context)
-            selected_plan_context: Optional[PlanContext] = planning_context.plan_by_uid[
+            selected_plan_context: Optional[PlanContext] = planning_context.plan_context_by_uid[
                 selected_plan_decomposer_tuple[1][0]
             ]
             if selected_plan_context is not None:
