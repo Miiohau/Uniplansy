@@ -135,6 +135,25 @@ class OrPlanFilterStrategy(PlanFilterStrategy):
         for current_partial_plan_selection_strategy in self.wrapped_plan_filter_strategies:
             current_partial_plan_selection_strategy.prepopulate_plan_cache(plan_to_populate)
 
+class AndPlanFilterStrategy(PlanFilterStrategy):
+
+    def __init__(self, wrapped_plan_filter_strategies: List[PlanFilterStrategy]):
+        self.wrapped_plan_filter_strategies = wrapped_plan_filter_strategies
+
+    def accept_plan(self, plan: Plan, planning_context: PlanningContext, world: World_Type, finalizing: bool = False) -> bool:
+        for current_plan_filter_strategy in self.wrapped_plan_filter_strategies:
+            if not current_plan_filter_strategy.accept_plan(plan, planning_context, finalizing):
+                return False
+        return True
+
+    def introduce_plan_cache_strategy(self, plan_cache_strategy: PlanCacheStrategy):
+        for current_partial_plan_selection_strategy in self.wrapped_plan_filter_strategies:
+            current_partial_plan_selection_strategy.introduce_plan_cache_strategy(plan_cache_strategy)
+
+    def prepopulate_plan_cache(self, plan_to_populate: Plan):
+        for current_partial_plan_selection_strategy in self.wrapped_plan_filter_strategies:
+            current_partial_plan_selection_strategy.prepopulate_plan_cache(plan_to_populate)
+
 class RandomPlanSelectionStrategy(FinalPartialPlanSelectionStrategy):
     """TODO: docstring"""
 
