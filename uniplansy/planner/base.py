@@ -12,6 +12,7 @@ from uniplansy.plans.plan import Plan
 class UIDNode:
     """Holds the data on the planning tree"""
     uid: str
+    parent: Optional[UIDNode]
     children: List[UIDNode] = field(default_factory=list)
 
 
@@ -51,6 +52,7 @@ class DecomposerContext:
     decomposer: Decomposer
     notes: Dict[str, Any] = field(default_factory=dict)
 
+
 class PlanCacheStrategy(metaclass=ABCMeta):
 
     def introduce_planning_strategy(self, planning_strategy: PlanningStrategy):
@@ -61,7 +63,7 @@ class PlanCacheStrategy(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def manage_active_plans(self, planning_context: PlanningContext, finalizing:bool = False):
+    def manage_active_plans(self, planning_context: PlanningContext, finalizing: bool = False):
         pass
 
     @abstractmethod
@@ -69,12 +71,13 @@ class PlanCacheStrategy(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def load_plan(self, plan_uid:str, planning_context: PlanningContext) -> Plan:
+    def load_plan(self, plan_uid: str, planning_context: PlanningContext) -> Plan:
         pass
 
     @abstractmethod
     def load_plans(self, planning_context: PlanningContext):
         pass
+
 
 class MaybeWantsToKnowPlanCacheStrategy(metaclass=ABCMeta):
 
@@ -87,6 +90,7 @@ class MaybeWantsToKnowPlanCacheStrategy(metaclass=ABCMeta):
         """
         pass
 
+
 class CanPrepopulateTheCasheOfPlans(metaclass=ABCMeta):
 
     def prepopulate_plan_cache(self, plan_to_populate: Plan):
@@ -98,6 +102,7 @@ class CanPrepopulateTheCasheOfPlans(metaclass=ABCMeta):
         :param plan_to_populate: the plan to prepopulate
         """
         pass
+
 
 class PlanningStrategy(MaybeWantsToKnowPlanCacheStrategy, CanPrepopulateTheCasheOfPlans, metaclass=ABCMeta):
     """a PlanningStrategy can be used to select a Plan Decomposer pair

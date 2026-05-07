@@ -6,6 +6,7 @@ from enum import Enum, auto
 from fractions import Fraction
 from typing import List, Tuple, Set, Optional
 
+from uniplansy.planner.base import PlanningContext
 from uniplansy.plans.plan import Plan, PlanDeltas
 from uniplansy.tasks.tasks import Task
 
@@ -64,19 +65,22 @@ class PlanComparisonStrategy(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def plan_to_tuple_key(self, plan: Plan) -> Tuple:
+    def plan_to_tuple_key(self, plan: Plan, planning_context: Optional[PlanningContext] = None) -> Tuple:
         """creates a tuple key for a plan
 
+        :param planning_context: the planning context if any
         :param plan: the plan to create a tuple key for
         :return: a tuple key for the Plan
         """
         pass
 
     @abstractmethod
-    def plan_plus_delta_to_tuple_key(self, plan: Plan, deltas: PlanDeltas) -> Tuple:
+    def plan_plus_delta_to_tuple_key(self, plan: Plan, deltas: PlanDeltas,
+                                     planning_context: Optional[PlanningContext] = None) -> Tuple:
         """creates a tuple key for a Plan PlanDeltas pair.
 
         This method is often used to sort Plan Decomposer pairs
+        :param planning_context: the planning context if any
         :param plan: the Plan part of the Plan PlanDeltas pair
         :param deltas: the PlanDeltas part of the Plan PlanDeltas pair
         :return: a tuple key for the Plan PlanDeltas pair
@@ -96,15 +100,22 @@ class BasicPlanComparisonStrategy(PlanComparisonStrategy):
     """a PlanComparisonStrategy that uses a raw list of PlanComparisonStrategyToken to create its Tuple keys"""
 
     def __init__(self, order: List[PlanComparisonStrategyToken],
-                 preferred_type: Optional[float | Fraction | type[float | Fraction]] = None):
+                 preferred_type: Optional[float | Fraction | type[float | Fraction]] = None,
+                 ensure_total_ordering: bool = True):
         super().__init__()
         self.order: List[PlanComparisonStrategyToken] = order
         self._values_needed: Set[PlanValueToken] = set()
         self.preferred_type = preferred_type
+        self.ensure_total_ordering = ensure_total_ordering
 
-    def _generate_standard_keys(self,
-                                summary_dict:dict[PlanValueToken, float | Fraction]
-                                ) -> List[float | Fraction | str]:
+    def generate_standard_keys(self,
+                               summary_dict: dict[PlanValueToken, float | Fraction]
+                               ) -> List[float | Fraction | str]:
+        """generate the standard keys for this PlanComparisonStrategy using the values stored in summary_dict
+
+        :param summary_dict: a dict of summary values
+        :return: a list of standard keys
+        """
         keys: List[float | Fraction | str] = []
         for token in self.order:
             if token == PlanComparisonStrategyToken.motivation_over_min_cost:
@@ -289,16 +300,17 @@ class BasicPlanComparisonStrategy(PlanComparisonStrategy):
                         summary_dict[token] = Fraction(task.satisfied_percentage)
                 else:
                     summary_dict[token] = task.satisfied_percentage
-        keys = self._generate_standard_keys(summary_dict)
-        # to guarantee a total ordering
-        keys.append(task.description.human_understandable_string)
-        keys.append(task.description.uid)
-        # it actually should be totally ordered by this point but just to make extra sure.
-        keys.append(id(task.description))
-        keys.append(id(task))
+        keys = self.generate_standard_keys(summary_dict)
+        if self.ensure_total_ordering:
+            # to guarantee a total ordering
+            keys.append(task.description.human_understandable_string)
+            keys.append(task.description.uid)
+            # it actually should be totally ordered by this point but just to make extra sure.
+            keys.append(id(task.description))
+            keys.append(id(task))
         return tuple(keys)
 
-    def plan_to_tuple_key(self, plan: Plan) -> Tuple:
+    def plan_to_tuple_key(self, plan: Plan, planning_context: Optional[PlanningContext] = None) -> Tuple:
         summary_dict: dict[PlanValueToken, float | Fraction] = {}
         for token in self.get_values_needed():
             if token == PlanValueToken.motivation:
@@ -310,9 +322,9 @@ class BasicPlanComparisonStrategy(PlanComparisonStrategy):
             elif token == PlanValueToken.max_cost:
                 summary_dict[token] = plan.max_cost(preferred_type=self.preferred_type)
             elif token == PlanValueToken.satisfied_percentage_median:
-                summary_dict[token] = plan.satisfied_percentage_median(preferred_type=self.preferred_type)
+                summary_dict[token] = plan.median_satisfied_percentage(preferred_type=self.preferred_type)
             elif token == PlanValueToken.satisfied_percentage_average:
-                summary_dict[token] = plan.satisfied_percentage_average(preferred_type=self.preferred_type)
+                summary_dict[token] = plan.average_satisfied_percentage(preferred_type=self.preferred_type)
             elif token == PlanValueToken.concrete_action_percentage:
                 if self.preferred_type is not None and (isinstance(self.preferred_type, float) or
                                                         issubclass(self.preferred_type, float) or
@@ -327,15 +339,16 @@ class BasicPlanComparisonStrategy(PlanComparisonStrategy):
                     summary_dict[token] = float(plan.tasks_fully_satisfied_percentage())
                 else:
                     summary_dict[token] = plan.tasks_fully_satisfied_percentage()
-        keys = self._generate_standard_keys(summary_dict)
-        # to guarantee a total ordering
-        keys.append(id(plan))
+        keys = self.generate_standard_keys(summary_dict)
+        if self.ensure_total_ordering:
+            # to guarantee a total ordering
+            keys.append(str(plan.uid))
+            keys.append(id(plan))
         return tuple(keys)
 
-    def plan_plus_delta_to_tuple_key(self, plan: Plan, deltas: PlanDeltas) -> Tuple:
-        # TODO:make this
-        keys = []
-        summary_dict:dict[PlanValueToken, float | Fraction] = {}
+    def plan_plus_delta_to_tuple_key(self, plan: Plan, deltas: PlanDeltas,
+                                     planning_context: Optional[PlanningContext] = None) -> Tuple:
+        summary_dict: dict[PlanValueToken, float | Fraction] = {}
         for token in self.get_values_needed():
             if token == PlanValueToken.motivation:
                 if self.preferred_type is not None:
@@ -390,9 +403,9 @@ class BasicPlanComparisonStrategy(PlanComparisonStrategy):
                     summary_dict[token] = (plan.max_cost(preferred_type=self.preferred_type) +
                                            deltas.max_cost_delta)
             elif token == PlanValueToken.satisfied_percentage_median:
-                summary_dict[token] = plan.satisfied_percentage_median(deltas, preferred_type=self.preferred_type)
+                summary_dict[token] = plan.median_satisfied_percentage(deltas, preferred_type=self.preferred_type)
             elif token == PlanValueToken.satisfied_percentage_average:
-                summary_dict[token] = plan.satisfied_percentage_average(deltas, preferred_type=self.preferred_type)
+                summary_dict[token] = plan.average_satisfied_percentage(deltas, preferred_type=self.preferred_type)
             elif token == PlanValueToken.concrete_action_percentage:
                 if self.preferred_type is not None and (isinstance(self.preferred_type, float) or
                                                         issubclass(self.preferred_type, float) or
@@ -407,10 +420,11 @@ class BasicPlanComparisonStrategy(PlanComparisonStrategy):
                     summary_dict[token] = float(plan.tasks_fully_satisfied_percentage(deltas))
                 else:
                     summary_dict[token] = plan.tasks_fully_satisfied_percentage(deltas)
-        keys = self._generate_standard_keys(summary_dict)
-        # to guarantee a total ordering
-        keys.append(str(plan.uid))
-        keys.append(id(plan))
+        keys = self.generate_standard_keys(summary_dict)
+        if self.ensure_total_ordering:
+            # to guarantee a total ordering
+            keys.append(str(plan.uid))
+            keys.append(id(plan))
         return tuple(keys)
 
     def get_values_needed(self) -> Set[PlanValueToken]:
@@ -459,3 +473,34 @@ class BasicPlanComparisonStrategy(PlanComparisonStrategy):
                 elif cur_token == PlanComparisonStrategyToken.concrete_action_percentage_des:
                     self._values_needed.add(PlanValueToken.concrete_action_percentage)
         return self._values_needed
+
+
+class CompositePlanComparisonStrategy(PlanComparisonStrategy):
+
+    def __init__(self, parts: List[PlanComparisonStrategy]):
+        self._parts = parts
+
+    def task_to_tuple_key(self, task: Task) -> Tuple:
+        keys: List = []
+        for part in self._parts:
+            keys.append(part.task_to_tuple_key(task))
+        return tuple(keys)
+
+    def plan_to_tuple_key(self, plan: Plan, planning_context: Optional[PlanningContext] = None) -> Tuple:
+        keys: List = []
+        for part in self._parts:
+            keys.append(part.plan_to_tuple_key(plan))
+        return tuple(keys)
+
+    def plan_plus_delta_to_tuple_key(self, plan: Plan, deltas: PlanDeltas,
+                                     planning_context: Optional[PlanningContext] = None) -> Tuple:
+        keys: List = []
+        for part in self._parts:
+            keys.append(part.plan_plus_delta_to_tuple_key(plan, deltas))
+        return tuple(keys)
+
+    def get_values_needed(self) -> Set[PlanValueToken]:
+        values_needed: Set[PlanValueToken] = set()
+        for current_part in self._parts:
+            values_needed.update(current_part.get_values_needed())
+        return values_needed

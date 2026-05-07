@@ -61,7 +61,7 @@ class Planner(Generic[World_Type]):
             node_id_context=self.node_id_context,
             task_description_id_context=self.task_description_id_context
         ))
-        root_uid_node: UIDNode = UIDNode(uid=root_name)
+        root_uid_node: UIDNode = UIDNode(uid=root_name, parent=None)
         self.planning_context = PlanningContext(
             root=root_uid_node,
             plan_context_by_uid={root_name: root_plan_context},
@@ -107,16 +107,20 @@ class Planner(Generic[World_Type]):
                 self.planning_context.notes["new decomposer uids"] = []
                 for current_decomposer in self.decomposers:
                     deltas: PlanDeltas = current_decomposer.estimate_deltas(selected_plan, world)
-                    new_decomposer_context: DecomposerContext = DecomposerContext(decomposer=current_decomposer,)
+                    new_decomposer_context: DecomposerContext = DecomposerContext(decomposer=current_decomposer, )
                     new_decomposer_context.notes["deltas"] = deltas
-                    new_uid_node: UIDNode = UIDNode(uid=current_decomposer.uid)
+                    new_uid_node: UIDNode = UIDNode(uid=current_decomposer.uid, parent=parent_uid_node)
                     parent_uid_node.children.append(new_uid_node)
-                    self.planning_context.decomposer_context_by_uid[selected_plan.uid][current_decomposer.uid] = new_decomposer_context
-                    self.planning_context.decomposer_uid_node_by_uid[selected_plan.uid][current_decomposer.uid] = new_uid_node
-                    self.planning_context.notes["new decomposer uids"].append((selected_plan.uid, current_decomposer.uid))
+                    self.planning_context.decomposer_context_by_uid[selected_plan.uid][
+                        current_decomposer.uid] = new_decomposer_context
+                    self.planning_context.decomposer_uid_node_by_uid[selected_plan.uid][
+                        current_decomposer.uid] = new_uid_node
+                    self.planning_context.notes["new decomposer uids"].append(
+                        (selected_plan.uid, current_decomposer.uid))
             else:
                 new_plans: List[Plan] = selected_decomposer.decompose_tasks(selected_plan, world)
-                parent_uid_node: UIDNode = self.planning_context.decomposer_uid_node_by_uid[selected_plan.uid][current_decomposer.uid]
+                parent_uid_node: UIDNode = self.planning_context.decomposer_uid_node_by_uid[selected_plan.uid][
+                    selected_decomposer.uid]
                 for current_new_plan in new_plans:
                     current_new_plan.freeze()
                     self.planning_strategy.prepopulate_plan_cache(current_new_plan)
@@ -131,7 +135,7 @@ class Planner(Generic[World_Type]):
                             current_new_plan.uid = self.plan_uid_supplier.create_guid("plan")
                         new_plan_context: PlanContext = PlanContext(plan=current_new_plan)
                         self.planning_context.plan_context_by_uid[current_new_plan.uid] = new_plan_context
-                        new_uid_node: UIDNode = UIDNode(uid=current_new_plan.uid)
+                        new_uid_node: UIDNode = UIDNode(uid=current_new_plan.uid, parent=parent_uid_node)
                         parent_uid_node.children.append(new_uid_node)
                         self.planning_context.plan_uid_node_by_uid[current_new_plan.uid] = new_uid_node
                 self.planning_context.notes["new plan uids"] = [current_new_plan.uid

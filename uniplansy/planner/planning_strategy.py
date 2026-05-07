@@ -172,6 +172,7 @@ class DelegatingPlanningStrategy(FullPlanningStrategy):
     def prepopulate_plan_cache(self, plan_to_populate: Plan):
         self.plan_selection_strategy.prepopulate_plan_cache(plan_to_populate)
 
+
 # todo: take advange of self.planning_context.notes["new decomposer uids"]
 class GreedyPlanningStrategy(FullPlanningStrategy,
                              InitialPartialPlanningStrategy,
@@ -188,17 +189,19 @@ class GreedyPlanningStrategy(FullPlanningStrategy,
     def introduce_plan_cache_strategy(self, plan_cache_strategy: PlanCacheStrategy):
         self.plan_cache_strategy = plan_cache_strategy
 
-    def _add_plans_to_heap(self, plans_to_add: Iterable[Plan]):
+    def _add_plans_to_heap(self, plans_to_add: Iterable[Plan], planning_context: PlanningContext):
         if len(self.min_heap) == 0:
             tuples_list: List[tuple[tuple, tuple[str, Optional[str]]]] = \
-                [(self.plan_comparison_strategy.plan_to_tuple_key(current_plan), (current_plan.uid, None))
+                [(self.plan_comparison_strategy.plan_to_tuple_key(current_plan, planning_context),
+                  (current_plan.uid, None))
                  for current_plan in plans_to_add]
             heapq.heapify(tuples_list)
             self.min_heap = tuples_list
         else:
             for current_plan in plans_to_add:
                 plan_tuple: tuple[tuple, tuple[str, Optional[str]]] = \
-                    (self.plan_comparison_strategy.plan_to_tuple_key(current_plan), (current_plan.uid, None))
+                    (self.plan_comparison_strategy.plan_to_tuple_key(current_plan, planning_context),
+                     (current_plan.uid, None))
                 heapq.heappush(self.min_heap, plan_tuple)
 
     def start_iterable(self, planning_context: PlanningContext, world: World_Type, decomposers: set[Decomposer]) \
@@ -208,20 +211,20 @@ class GreedyPlanningStrategy(FullPlanningStrategy,
                                         for current_plan_context in planning_context.plan_context_by_uid.values()
                                         if (current_plan_context is not None) and
                                         (current_plan_context.plan is not None)]
-            self._add_plans_to_heap(active_plans)
+            self._add_plans_to_heap(active_plans, planning_context)
         else:
             new_plans: List[Plan] = [PlanningContext.plan_context_by_uid[curUID].plan
                                      for curUID in planning_context.notes["new plan uids"]
                                      if (PlanningContext.plan_context_by_uid[curUID] is not None) and
                                      (PlanningContext.plan_context_by_uid[curUID].plan is not None)]
-            self._add_plans_to_heap(new_plans)
+            self._add_plans_to_heap(new_plans, planning_context)
         while True:
             if len(self.min_heap) == 0:
                 active_plans: List[Plan] = [current_plan_context.plan
                                             for current_plan_context in planning_context.plan_context_by_uid.values()
                                             if (current_plan_context is not None) and
                                             (current_plan_context.plan is not None)]
-                self._add_plans_to_heap(active_plans)
+                self._add_plans_to_heap(active_plans, planning_context)
             select_plan_tuple: tuple[tuple, tuple[str, Optional[str]]] = heapq.heappop(self.min_heap)
             selected_plan_uid: str = select_plan_tuple[1][0]
             selected_decomposer_uid: str = select_plan_tuple[1][1]
@@ -248,7 +251,7 @@ class GreedyPlanningStrategy(FullPlanningStrategy,
                                  for curUID in planning_context.notes["new plan uids"]
                                  if (PlanningContext.plan_context_by_uid[curUID] is not None) and
                                  (PlanningContext.plan_context_by_uid[curUID].plan is not None)]
-        self._add_plans_to_heap(new_plans)
+        self._add_plans_to_heap(new_plans, planning_context)
         selected_plan: Optional[Plan] = None
         selected_decomposer: Optional[Decomposer] = None
         while (selected_plan is None) or (selected_decomposer is None):
@@ -272,7 +275,8 @@ class GreedyPlanningStrategy(FullPlanningStrategy,
                             if current_decomposer.applicable(selected_plan, world):
                                 delta: PlanDeltas = current_decomposer.estimate_deltas(selected_plan, world)
                                 new_plan_decomposer_tuple: tuple[tuple, tuple[str, Optional[str]]] = (
-                                    self.plan_comparison_strategy.plan_plus_delta_to_tuple_key(selected_plan, delta),
+                                    self.plan_comparison_strategy.plan_plus_delta_to_tuple_key(selected_plan, delta,
+                                                                                               planning_context),
                                     (selected_plan.uid, current_decomposer.uid)
                                 )
                                 heapq.heappush(self.min_heap, new_plan_decomposer_tuple)
@@ -285,25 +289,18 @@ class GreedyPlanningStrategy(FullPlanningStrategy,
             world: World_Type,
             decomposers: set[Decomposer]
     ) -> Optional[tuple[Plan, Optional[Decomposer]]]:
-        # todo: this is flawed because it assumes current_decomposer is not null and doesn't apply the deltas
-        # tuples_list: List[tuple[tuple, tuple[str, Optional[str]]]] = [
-        #    (
-        #        self.plan_comparison_strategy.plan_to_tuple_key(current_plan),
-        #        (current_plan.uid, current_decomposer.uid)
-        #    )
-        #    for (current_plan, current_decomposer) in plans_to_filter]
         tuples_list: List[tuple[tuple, tuple[str, Optional[str]]]] = list()
         for (current_plan, current_decomposer) in plans_to_filter:
             new_plan_decomposer_tuple: tuple[tuple, tuple[str, Optional[str]]]
             if current_decomposer is not None:
                 delta: PlanDeltas = current_decomposer.estimate_deltas(current_plan, world)
                 new_plan_decomposer_tuple = (
-                    self.plan_comparison_strategy.plan_plus_delta_to_tuple_key(current_plan, delta),
+                    self.plan_comparison_strategy.plan_plus_delta_to_tuple_key(current_plan, delta, planning_context),
                     (current_plan.uid, current_decomposer.uid)
                 )
             else:
                 new_plan_decomposer_tuple = (
-                    self.plan_comparison_strategy.plan_to_tuple_key(current_plan),
+                    self.plan_comparison_strategy.plan_to_tuple_key(current_plan, planning_context),
                     (current_plan.uid, None)
                 )
             tuples_list.append(new_plan_decomposer_tuple)
@@ -331,7 +328,8 @@ class GreedyPlanningStrategy(FullPlanningStrategy,
                             if current_decomposer.applicable(selected_plan, world):
                                 delta: PlanDeltas = current_decomposer.estimate_deltas(selected_plan, world)
                                 new_plan_decomposer_tuple: tuple[tuple, tuple[str, Optional[str]]] = (
-                                    self.plan_comparison_strategy.plan_plus_delta_to_tuple_key(selected_plan, delta),
+                                    self.plan_comparison_strategy.plan_plus_delta_to_tuple_key(selected_plan, delta,
+                                                                                               planning_context),
                                     (selected_plan.uid, current_decomposer.uid)
                                 )
                                 heapq.heappush(self.min_heap, new_plan_decomposer_tuple)
