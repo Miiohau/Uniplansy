@@ -24,7 +24,11 @@ class DepthComparisonStrategy(PlanComparisonStrategy):
         self.printed_warning = False
 
     def task_to_tuple_key(self, task: Task) -> Tuple:
-        return tuple([0])
+        if self.ensure_total_ordering:
+            return tuple(
+                [0, task.description.human_understandable_string, task.description.uid, id(task.description), id(task)])
+        else:
+            return tuple([0])
 
     def plan_to_tuple_key(self, plan: Plan, planning_context: Optional[PlanningContext] = None) -> Tuple:
         if planning_context is None:
@@ -38,7 +42,7 @@ class DepthComparisonStrategy(PlanComparisonStrategy):
         current_node: UIDNode = planning_context.plan_uid_node_by_uid[plan.uid]
         steps: int = 0
         step_mod: int = 0
-        if len(current_node.children) > 0:
+        if self.leaves_first and (len(current_node.children) > 0):
             step_mod = len(planning_context.plan_uid_node_by_uid) + len(planning_context.decomposer_uid_node_by_uid) + 1
         while current_node is not None:
             steps += 1
@@ -46,14 +50,19 @@ class DepthComparisonStrategy(PlanComparisonStrategy):
         if not self.ascending:
             steps *= -1
         steps += step_mod
-        return tuple([steps])
+        if self.ensure_total_ordering:
+            return tuple([steps, str(plan.uid), id(plan)])
+        else:
+            return tuple([steps])
 
     def plan_plus_delta_to_tuple_key(self, plan: Plan, deltas: PlanDeltas,
                                      planning_context: Optional[PlanningContext] = None) -> Tuple:
+        plan_tuple: tuple = self.plan_to_tuple_key(plan, planning_context)
         if self.ascending:
-            return tuple([self.plan_to_tuple_key(plan, planning_context)[0] + 1])
+            plan_tuple[0] += 1
         else:
-            return tuple([self.plan_to_tuple_key(plan, planning_context)[0] - 1])
+            plan_tuple[0] -= 1
+        return plan_tuple
 
     def get_values_needed(self) -> Set[PlanValueToken]:
         return set()
