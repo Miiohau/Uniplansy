@@ -424,7 +424,10 @@ class BasicPlanComparisonStrategy(PlanComparisonStrategy):
         if self.ensure_total_ordering:
             # to guarantee a total ordering
             keys.append(str(plan.uid))
+            keys.append(str(deltas.decomposer_uid))
+            keys.append(str(deltas.uid))
             keys.append(id(plan))
+            keys.append(id(deltas))
         return tuple(keys)
 
     def get_values_needed(self) -> Set[PlanValueToken]:
@@ -477,19 +480,31 @@ class BasicPlanComparisonStrategy(PlanComparisonStrategy):
 
 class CompositePlanComparisonStrategy(PlanComparisonStrategy):
 
-    def __init__(self, parts: List[PlanComparisonStrategy]):
+    def __init__(self, parts: List[PlanComparisonStrategy], ensure_total_ordering: bool = True):
         self._parts = parts
+        self.ensure_total_ordering = ensure_total_ordering
 
     def task_to_tuple_key(self, task: Task) -> Tuple:
         keys: List = []
         for part in self._parts:
             keys.append(part.task_to_tuple_key(task))
+        if self.ensure_total_ordering:
+            # to guarantee a total ordering
+            keys.append(task.description.human_understandable_string)
+            keys.append(task.description.uid)
+            # it actually should be totally ordered by this point but just to make extra sure.
+            keys.append(id(task.description))
+            keys.append(id(task))
         return tuple(keys)
 
     def plan_to_tuple_key(self, plan: Plan, planning_context: Optional[PlanningContext] = None) -> Tuple:
         keys: List = []
         for part in self._parts:
             keys.append(part.plan_to_tuple_key(plan))
+        if self.ensure_total_ordering:
+            # to guarantee a total ordering
+            keys.append(str(plan.uid))
+            keys.append(id(plan))
         return tuple(keys)
 
     def plan_plus_delta_to_tuple_key(self, plan: Plan, deltas: PlanDeltas,
@@ -497,6 +512,13 @@ class CompositePlanComparisonStrategy(PlanComparisonStrategy):
         keys: List = []
         for part in self._parts:
             keys.append(part.plan_plus_delta_to_tuple_key(plan, deltas))
+        if self.ensure_total_ordering:
+            # to guarantee a total ordering
+            keys.append(str(plan.uid))
+            keys.append(str(deltas.decomposer_uid))
+            keys.append(str(deltas.uid))
+            keys.append(id(plan))
+            keys.append(id(deltas))
         return tuple(keys)
 
     def get_values_needed(self) -> Set[PlanValueToken]:

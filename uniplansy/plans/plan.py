@@ -23,8 +23,9 @@ from uniplansy.plans.plan_graph_node import PlanGraphNode
 from uniplansy.tasks.tasks import Task, TaskDescription, TaskFilter
 from uniplansy.util.FreezableObject import FreezableObject
 from uniplansy.util.global_type_vars import World_Type
-from uniplansy.util.has_uid import HasOptionalUID, HasRequiredUID
+from uniplansy.util.has_uid import HasOptionalUID
 from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError, id_registry_registry
+
 
 class Constraint(metaclass=ABCMeta):
     """A Constraint represents a condition that must remain true for the plan to remain valid"""
@@ -39,12 +40,13 @@ class Constraint(metaclass=ABCMeta):
         pass
 
 
-
 @dataclass(frozen=True)
-class PlanDeltas:
+class PlanDeltas(HasOptionalUID):
     """a data class to store deltas to the summary statistics of a Plan.
 
     Primarily used by Decomposer.estimate_deltas"""
+    uid: Optional[str] = None
+    decomposer_uid: Optional[str] = None
     total_motivation_delta: float | Fraction = 0
     min_cost_delta: float | Fraction = 0
     max_cost_delta: float | Fraction = 0
