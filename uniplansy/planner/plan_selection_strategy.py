@@ -1,18 +1,18 @@
 """defines the PlanSelectionStrategy and some subclasses. a PlanSelectionStrategy selects a plan in the context of a
 planning_context.
 
-PlanSelectionStrategy(Interface): TODO:DocString
-FullPlanSelectionStrategy(interface): the core class of this module. a plan selection strategy selects a plan in the
-context of a planning_context.
-PartialPlanSelectionStrategy(interface): TODO:DocString
-PlanFilterStrategy(): TODO:DocString
-InitialPartialPlanSelectionStrategy(interface): TODO:DocString
-FinalPartialPlanSelectionStrategy(interface): TODO:DocString
-NotPlanFilterStrategy(): TODO:DocString
-OrPlanFilterStrategy(): TODO:DocString
-RandomPlanSelectionStrategy(): TODO:DocString
-FirstValidPlanSelectionStrategy(): TODO:DocString
-ArbitraryInitialPartialPlanSelectionStrategy(): TODO:DocString
+PlanSelectionStrategy(Interface): a strategy to select a plan in planning_context.
+FullPlanSelectionStrategy(PlanSelectionStrategy): the core class of this module. a plan selection strategy selects
+a plan in the context of a planning_context.
+PartialPlanSelectionStrategy(PlanSelectionStrategy): used to filter the plan stream
+PlanFilterStrategy(PlanSelectionStrategy): used to filter the plan stream
+InitialPartialPlanSelectionStrategy(PlanSelectionStrategy): TODO:DocString
+FinalPartialPlanSelectionStrategy(PlanSelectionStrategy): TODO:DocString
+NotPlanFilterStrategy(PlanFilterStrategy): TODO:DocString
+OrPlanFilterStrategy(PlanFilterStrategy): TODO:DocString
+RandomPlanSelectionStrategy(FinalPartialPlanSelectionStrategy): TODO:DocString
+FirstValidPlanSelectionStrategy(FinalPartialPlanSelectionStrategy): TODO:DocString
+ArbitraryInitialPartialPlanSelectionStrategy(InitialPartialPlanSelectionStrategy): TODO:DocString
 GreedyPlanSelectionStrategy(PlanSelectionStrategy):a greedy PlanSelectionStrategy that returns plans in sort order
 (determined by plan_comparison_strategy: PlanComparisonStrategy)
 """
@@ -29,7 +29,7 @@ from uniplansy.util.global_type_vars import World_Type
 
 
 class PlanSelectionStrategy(MaybeWantsToKnowPlanCacheStrategy, CanPrepopulateTheCasheOfPlans, metaclass=ABCMeta):
-    """TODO: docstring"""
+    """a strategy to select a plan in planning_context."""
 
 
 class FullPlanSelectionStrategy(PlanSelectionStrategy, metaclass=ABCMeta):
@@ -53,7 +53,12 @@ class FullPlanSelectionStrategy(PlanSelectionStrategy, metaclass=ABCMeta):
 
 
 class PartialPlanSelectionStrategy(PlanSelectionStrategy, metaclass=ABCMeta):
-    """TODO: docstring"""
+    """used to filter the plan stream
+
+    filter_plans(method): filters the plan stream
+    introduce_plan_cache_strategy(method):introduces a PlanCacheStrategy to the PlanningStrategy which it may save.
+    prepopulate_plan_cache(method): prepopulates the cache values of the plan
+    """
 
     @abstractmethod
     def filter_plans(
@@ -74,11 +79,23 @@ class PartialPlanSelectionStrategy(PlanSelectionStrategy, metaclass=ABCMeta):
 
 
 class PlanFilterStrategy(PartialPlanSelectionStrategy, metaclass=ABCMeta):
-    """TODO: docstring"""
+    """used to filter the plan stream
+
+    accept_plan(method): filters the plan stream
+    introduce_plan_cache_strategy(method):introduces a PlanCacheStrategy to the PlanningStrategy which it may save.
+    prepopulate_plan_cache(method): prepopulates the cache values of the plan
+    """
 
     @abstractmethod
     def accept_plan(self, plan: Plan, planning_context: PlanningContext, world: World_Type,
                     finalizing: bool = False) -> bool:
+        """accepts or rejects the plan
+
+        :param plan: the plan being checked
+        :param planning_context: the planning context
+        :param world: the world being planed in
+        :param finalizing: whether it is being called to select the final returned plan
+        """
         pass
 
     def filter_plans(
@@ -123,7 +140,7 @@ class NotPlanFilterStrategy(PlanFilterStrategy):
 
     def accept_plan(self, plan: Plan, planning_context: PlanningContext, world: World_Type,
                     finalizing: bool = False) -> bool:
-        return not self.wrapped_plan_filter_strategy.accept_plan(plan, planning_context, finalizing)
+        return not self.wrapped_plan_filter_strategy.accept_plan(plan, planning_context, world, finalizing)
 
     def introduce_plan_cache_strategy(self, plan_cache_strategy: PlanCacheStrategy):
         self.wrapped_plan_filter_strategy.introduce_plan_cache_strategy(plan_cache_strategy)
@@ -140,7 +157,7 @@ class OrPlanFilterStrategy(PlanFilterStrategy):
     def accept_plan(self, plan: Plan, planning_context: PlanningContext, world: World_Type,
                     finalizing: bool = False) -> bool:
         for current_plan_filter_strategy in self.wrapped_plan_filter_strategies:
-            if current_plan_filter_strategy.accept_plan(plan, planning_context, finalizing):
+            if current_plan_filter_strategy.accept_plan(plan, planning_context, world, finalizing):
                 return True
         return False
 
@@ -161,7 +178,7 @@ class AndPlanFilterStrategy(PlanFilterStrategy):
     def accept_plan(self, plan: Plan, planning_context: PlanningContext, world: World_Type,
                     finalizing: bool = False) -> bool:
         for current_plan_filter_strategy in self.wrapped_plan_filter_strategies:
-            if not current_plan_filter_strategy.accept_plan(plan, planning_context, finalizing):
+            if not current_plan_filter_strategy.accept_plan(plan, planning_context, world, finalizing):
                 return False
         return True
 
@@ -265,13 +282,17 @@ class CompositeFullPlanSelectionStrategy(FullPlanSelectionStrategy):
                 else:
                     self.final_plan_selection_strategy = RandomPlanSelectionStrategy()
         chain_iterable: Iterable[Plan] = (
-            self.initial_plan_selection_strategy.start_iterable(planning_context, finalizing))
+            self.initial_plan_selection_strategy.start_iterable(planning_context, world, finalizing))
         for current_partial_plan_selection_strategy in self.partial_plan_selection_strategies:
             chain_iterable = (
-                current_partial_plan_selection_strategy.filter_plans(chain_iterable, planning_context, finalizing)
+                current_partial_plan_selection_strategy.filter_plans(chain_iterable,
+                                                                     planning_context,
+                                                                     world,
+                                                                     finalizing)
             )
         return self.final_plan_selection_strategy.select_plan_from_iterable(chain_iterable,
                                                                             planning_context,
+                                                                            world,
                                                                             finalizing)
 
     def introduce_plan_cache_strategy(self, plan_cache_strategy: PlanCacheStrategy):
@@ -494,8 +515,3 @@ class AtLeastOneUnsatisfiedTaskPlanFilter(PlanFilterStrategy):
     def accept_plan(self, plan: Plan, planning_context: PlanningContext, world: World_Type,
                     finalizing: bool = False) -> bool:
         return plan.at_least_one_unsatisfied_task()
-
-# standard PlanSelectionStrategies
-# TODO: create these classes
-# deepest plan first filter
-# shallowest plan first filter

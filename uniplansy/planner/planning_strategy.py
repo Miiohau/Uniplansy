@@ -1,6 +1,23 @@
 """defines PlanningStrategy and some subclasses. A PlanningStrategy can be used to select a Plan Decomposer pair
 
 PlanningStrategy(interface): the abstract planning strategy that can be used to select a Plan Decomposer pair
+FullPlanningStrategy(PlanningStrategy): used to select a Plan Decomposer pair
+PartialPlanningStrategy(PlanningStrategy): used to filter the plan Decomposer tuple stream
+PlanningFilterStrategy(PartialPlanningStrategy): used to filter the plan Decomposer tuple stream
+InitialPartialPlanningStrategy(PlanningStrategy): used to start the plan Decomposer tuple stream
+FinalPlanningStrategy(PlanningStrategy): used to select the plan Decomposer tuple from the plan Decomposer tuple stream
+NotPlanningFilterStrategy(PlanningFilterStrategy): inverts the wrapped_Planning_filter_strategy
+OrPlanningFilterStrategy(PlanningFilterStrategy): accepts the plan decomposer pair if any
+wrapped_planning_filter_strategies accepts the plan decomposer pair
+AndPlanningFilterStrategy(PlanningFilterStrategy): accepts the plan decomposer pair only if all
+wrapped_planning_filter_strategies accepts the plan decomposer pair
+PlanFilterToPlanningFilter(PlanningFilterStrategy): wraps a PlanFilterStrategy to turn it into a PlanningFilterStrategy"
+RandomFinalPlanningStrategy(FinalPlanningStrategy): a FinalPlanningStrategy that selects
+a plan decomposer pair at random
+FirstValidPlanningStrategy(FinalPlanningStrategy): selects the first valid plan from the plan Decomposer tuple stream
+ArbitraryInitialPartialPlanningStrategy(InitialPartialPlanningStrategy): start the plan Decomposer tuple stream in
+an arbitrary order.
+CompositeFullPlanningStrategy(FullPlanningStrategy): a FullPlanningStrategy that composed of PartialPlanningStrategies
 DelegatingPlanningStrategy(PlanningStrategy): Delegates the planning to a plan_selection_strategy and
 a decomposer_selection_strategy
 GreedyPlanningStrategy(PlanningStrategy): a greedy PlanningStrategy that returns plans in sort order
@@ -9,12 +26,13 @@ GreedyPlanningStrategy(PlanningStrategy): a greedy PlanningStrategy that returns
 import heapq
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
+from random import Random
 from typing import Optional, Set, List, Iterable
 
 from uniplansy.decomposers.core import Decomposer, decomposer_registry
-from uniplansy.planner.base import PlanningContext, PlanContext, PlanningStrategy, PlanCacheStrategy
+from uniplansy.planner.base import PlanningContext, PlanContext, PlanningStrategy, PlanCacheStrategy, UIDNode
 from uniplansy.planner.decomposer_selection_strategy import DecomposerSelectionStrategy
-from uniplansy.planner.plan_selection_strategy import FullPlanSelectionStrategy
+from uniplansy.planner.plan_selection_strategy import FullPlanSelectionStrategy, PlanFilterStrategy
 from uniplansy.plans.plan import Plan, PlanDeltas
 from uniplansy.plans.plan_comparison_strategy import PlanComparisonStrategy, PlanValueToken
 from uniplansy.util.global_type_vars import World_Type
@@ -26,7 +44,7 @@ from uniplansy.util.id_registry import RegistryKeyNotFoundError
 
 
 class FullPlanningStrategy(PlanningStrategy, metaclass=ABCMeta):
-    """a FullPlanningStrategy can be used to select a Plan Decomposer pair
+    """a FullPlanningStrategy used to select a Plan Decomposer pair
 
     plan(method): selects a plan and a decomposer
     introduce_plan_cache_strategy(method):introduces a PlanCacheStrategy to the PlanningStrategy which it may save.
@@ -47,7 +65,12 @@ class FullPlanningStrategy(PlanningStrategy, metaclass=ABCMeta):
 
 
 class PartialPlanningStrategy(PlanningStrategy, metaclass=ABCMeta):
-    """TODO: docstring"""
+    """a PartialPlanningStrategy used to filter the plan Decomposer tuple stream
+
+    filter_plans(method): filters the plan Decomposer tuple stream
+    introduce_plan_cache_strategy(method):introduces a PlanCacheStrategy to the PlanningStrategy which it may save.
+    prepopulate_plan_cache(method): prepopulates the cache values of the plan
+    """
 
     @abstractmethod
     def filter_plans(
@@ -69,7 +92,12 @@ class PartialPlanningStrategy(PlanningStrategy, metaclass=ABCMeta):
 
 
 class PlanningFilterStrategy(PartialPlanningStrategy, metaclass=ABCMeta):
-    """TODO: docstring"""
+    """a PartialPlanningStrategy used to filter the plan Decomposer tuple stream
+
+    accept_plan(method): accepts or rejects the plan decomposer pair
+    introduce_plan_cache_strategy(method):introduces a PlanCacheStrategy to the PlanningStrategy which it may save.
+    prepopulate_plan_cache(method): prepopulates the cache values of the plan
+    """
 
     @abstractmethod
     def accept_plan(self,
@@ -89,7 +117,6 @@ class PlanningFilterStrategy(PartialPlanningStrategy, metaclass=ABCMeta):
         """
         pass
 
-    @abstractmethod
     def filter_plans(
             self,
             plan_decomposer_pairs_to_filter: Iterable[Optional[tuple[Plan, Optional[Decomposer]]]],
@@ -104,7 +131,13 @@ class PlanningFilterStrategy(PartialPlanningStrategy, metaclass=ABCMeta):
 
 
 class InitialPartialPlanningStrategy(PlanningStrategy):
-    """TODO: docstring"""
+    """a PlanningStrategy used to start the plan Decomposer tuple stream
+
+    also decides the order plan Decomposer tuple are visited
+    start_iterable(method): starts the plan decomposer pairs stream
+    introduce_plan_cache_strategy(method):introduces a PlanCacheStrategy to the PlanningStrategy which it may save.
+    prepopulate_plan_cache(method): prepopulates the cache values of the plan
+    """
 
     @abstractmethod
     def start_iterable(self, planning_context: PlanningContext, world: World_Type, decomposers: set[Decomposer]) \
@@ -119,7 +152,12 @@ class InitialPartialPlanningStrategy(PlanningStrategy):
 
 
 class FinalPlanningStrategy(PlanningStrategy):
-    """TODO: docstring"""
+    """a PlanningStrategy used to select the plan Decomposer tuple from the plan Decomposer tuple stream
+
+    select_plan_from_iterable(method): selects a plan Decomposer pair from the plan Decomposer tuple stream
+    introduce_plan_cache_strategy(method):introduces a PlanCacheStrategy to the PlanningStrategy which it may save.
+    prepopulate_plan_cache(method): prepopulates the cache values of the plan
+    """
 
     @abstractmethod
     def select_plan_from_iterable(
@@ -137,6 +175,239 @@ class FinalPlanningStrategy(PlanningStrategy):
         :param decomposers: the set of all the decomposers
         """
         pass
+
+
+class NotPlanningFilterStrategy(PlanningFilterStrategy):
+    """inverts the wrapped_Planning_filter_strategy"""
+
+    def __init__(self, wrapped_planning_filter_strategy: PlanningFilterStrategy):
+        self.wrapped_planning_filter_strategy = wrapped_planning_filter_strategy
+
+    def accept_plan(self,
+                    plan: Plan,
+                    decomposer: Optional[Decomposer],
+                    planning_context: PlanningContext,
+                    world: World_Type,
+                    decomposers: set[Decomposer]
+                    ) -> bool:
+        return not self.wrapped_planning_filter_strategy.accept_plan(plan,
+                                                                     decomposer,
+                                                                     planning_context,
+                                                                     world,
+                                                                     decomposers)
+
+    def introduce_plan_cache_strategy(self, plan_cache_strategy: PlanCacheStrategy):
+        self.wrapped_planning_filter_strategy.introduce_plan_cache_strategy(plan_cache_strategy)
+
+    def prepopulate_plan_cache(self, plan_to_populate: Plan):
+        self.wrapped_planning_filter_strategy.prepopulate_plan_cache(plan_to_populate)
+
+
+class OrPlanningFilterStrategy(PlanningFilterStrategy):
+    """accepts the plan decomposer pair if any wrapped_planning_filter_strategies accepts the plan decomposer pair"""
+
+    def __init__(self, wrapped_planning_filter_strategies: List[PlanningFilterStrategy]):
+        self.wrapped_planning_filter_strategies = wrapped_planning_filter_strategies
+
+    def accept_plan(self,
+                    plan: Plan,
+                    decomposer: Optional[Decomposer],
+                    planning_context: PlanningContext,
+                    world: World_Type,
+                    decomposers: set[Decomposer]
+                    ) -> bool:
+        for current_plan_filter_strategy in self.wrapped_planning_filter_strategies:
+            if current_plan_filter_strategy.accept_plan(plan, decomposer, planning_context, world, decomposers):
+                return True
+        return False
+
+    def introduce_plan_cache_strategy(self, plan_cache_strategy: PlanCacheStrategy):
+        for current_partial_plan_selection_strategy in self.wrapped_planning_filter_strategies:
+            current_partial_plan_selection_strategy.introduce_plan_cache_strategy(plan_cache_strategy)
+
+    def prepopulate_plan_cache(self, plan_to_populate: Plan):
+        for current_partial_plan_selection_strategy in self.wrapped_planning_filter_strategies:
+            current_partial_plan_selection_strategy.prepopulate_plan_cache(plan_to_populate)
+
+
+class AndPlanningFilterStrategy(PlanningFilterStrategy):
+    """accepts the plan decomposer pair only if all wrapped_planning_filter_strategies accepts
+    the plan decomposer pair"""
+
+    def __init__(self, wrapped_planning_filter_strategies: List[PlanningFilterStrategy]):
+        self.wrapped_planning_filter_strategies = wrapped_planning_filter_strategies
+
+    def accept_plan(self,
+                    plan: Plan,
+                    decomposer: Optional[Decomposer],
+                    planning_context: PlanningContext,
+                    world: World_Type,
+                    decomposers: set[Decomposer]
+                    ) -> bool:
+        for current_plan_filter_strategy in self.wrapped_planning_filter_strategies:
+            if not current_plan_filter_strategy.accept_plan(plan, decomposer, planning_context, world, decomposers):
+                return False
+        return True
+
+    def introduce_plan_cache_strategy(self, plan_cache_strategy: PlanCacheStrategy):
+        for current_partial_plan_selection_strategy in self.wrapped_planning_filter_strategies:
+            current_partial_plan_selection_strategy.introduce_plan_cache_strategy(plan_cache_strategy)
+
+    def prepopulate_plan_cache(self, plan_to_populate: Plan):
+        for current_partial_plan_selection_strategy in self.wrapped_planning_filter_strategies:
+            current_partial_plan_selection_strategy.prepopulate_plan_cache(plan_to_populate)
+
+
+class PlanFilterToPlanningFilter(PlanningFilterStrategy):
+    """wraps a PlanFilterStrategy to turn it into a PlanningFilterStrategy"""
+
+    def __init__(self, wrapped_plan_filter_strategy: PlanFilterStrategy):
+        self.wrapped_plan_filter_strategy = wrapped_plan_filter_strategy
+
+    def accept_plan(self,
+                    plan: Plan,
+                    decomposer: Optional[Decomposer],
+                    planning_context: PlanningContext,
+                    world: World_Type,
+                    decomposers: set[Decomposer]
+                    ) -> bool:
+        return self.wrapped_plan_filter_strategy.accept_plan(plan, planning_context, world)
+
+
+class RandomFinalPlanningStrategy(FinalPlanningStrategy):
+    """a FinalPlanningStrategy that selects a plan decomposer pair at random
+
+    limit(initialization parameter):the maximum number of plan decomposer pairs to pull off
+    the plan Decomposer tuple stream"""
+
+    def __init__(self, limit: int = 100, rnd: Random = Random()):
+        self.limit = limit
+        self.rnd = rnd
+
+    def select_plan_from_iterable(
+            self,
+            plans_to_filter: Iterable[Optional[tuple[Plan, Optional[Decomposer]]]],
+            planning_context: PlanningContext,
+            world: World_Type,
+            decomposers: set[Decomposer]
+    ) -> Optional[tuple[Plan, Optional[Decomposer]]]:
+        plan_list: List[Optional[tuple[Plan, Optional[Decomposer]]]] = []
+        plans_to_filter_iter = iter(plans_to_filter)
+        while len(plan_list) < self.limit:
+            try:
+                plan_list.append(next(plans_to_filter_iter))
+            except StopIteration:
+                break
+        return self.rnd.choice(plan_list)
+
+
+class FirstValidPlanningStrategy(FinalPlanningStrategy):
+    """selects the first valid plan from the plan Decomposer tuple stream"""
+
+    def select_plan_from_iterable(
+            self,
+            plans_to_filter: Iterable[Optional[tuple[Plan, Optional[Decomposer]]]],
+            planning_context: PlanningContext,
+            world: World_Type,
+            decomposers: set[Decomposer]
+    ) -> Optional[tuple[Plan, Optional[Decomposer]]]:
+        return next(iter(plans_to_filter))
+
+
+class ArbitraryInitialPartialPlanningStrategy(InitialPartialPlanningStrategy):
+    """start the plan Decomposer tuple stream in an arbitrary order.
+
+    useful when don't care the order of nodes being expanded"""
+
+    def start_iterable(self, planning_context: PlanningContext, world: World_Type, decomposers: set[Decomposer]) \
+            -> Iterable[Optional[tuple[Plan, Optional[Decomposer]]]]:
+        all_uid_nodes: List[UIDNode] = list()
+        for current_decomposer_uid_node_map in planning_context.decomposer_uid_node_by_uid.values():
+            all_uid_nodes.extend(current_decomposer_uid_node_map.values())
+        all_uid_nodes.extend(planning_context.plan_uid_node_by_uid.values())
+        for current_uid_node in all_uid_nodes:
+            if current_uid_node.uid in planning_context.plan_context_by_uid:
+                yield planning_context.plan_context_by_uid[current_uid_node.uid].plan, None
+            else:
+                parent_uid_node = current_uid_node.parent
+                yield planning_context.plan_context_by_uid[parent_uid_node.uid].plan, \
+                    planning_context.decomposer_context_by_uid[parent_uid_node.uid][current_uid_node.uid]
+
+
+class CompositeFullPlanningStrategy(FullPlanningStrategy):
+    """a FullPlanningStrategy that composed of PartialPlanningStrategies
+
+    needs an initial/final Planning strategy but will try to find suitable strategies in
+    partial_planning_strategies or the other final/initial Planning strategy, if it doesn't find any it will
+    use ArbitraryInitialPartialPlanningStrategy for the initial_planning_strategy and
+    RandomPlanSelectionStrategy for the final_planning_strategy.
+    initial_planning_strategy(initialization parameter): used to start the plan Decomposer tuple stream
+    final_planning_strategy(initialization parameter): the strategy to use to select the final plan
+    partial_planning_strategies(initialization parameter): used to select the plan Decomposer tuple from
+    the plan Decomposer tuple stream"""
+
+    def __init__(self,
+                 initial_planning_strategy: Optional[InitialPartialPlanningStrategy] = None,
+                 final_planning_strategy: Optional[FinalPlanningStrategy] = None,
+                 partial_planning_strategies: Optional[List[PartialPlanningStrategy]] = None
+                 ):
+        if partial_planning_strategies is None:
+            partial_planning_strategies = []
+        self.initial_planning_strategy = initial_planning_strategy
+        self.final_planning_strategy = final_planning_strategy
+        self.partial_planning_strategies = partial_planning_strategies
+
+    def plan(self, planning_context: PlanningContext, world: World_Type, decomposers: set[Decomposer]) \
+            -> Optional[tuple[Plan, Optional[Decomposer]]]:
+        if self.initial_planning_strategy is None:
+            for current_partial_plan_selection_strategy in self.partial_planning_strategies:
+                if isinstance(current_partial_plan_selection_strategy, InitialPartialPlanningStrategy):
+                    self.initial_planning_strategy = current_partial_plan_selection_strategy
+                    break
+            if self.initial_planning_strategy is None:
+                if isinstance(self.final_planning_strategy, InitialPartialPlanningStrategy):
+                    self.initial_planning_strategy = self.final_planning_strategy
+                else:
+                    self.initial_planning_strategy = ArbitraryInitialPartialPlanningStrategy()
+        if self.final_planning_strategy is None:
+            for current_partial_plan_selection_strategy in reversed(self.partial_planning_strategies):
+                if isinstance(current_partial_plan_selection_strategy, FinalPlanningStrategy):
+                    self.final_planning_strategy = current_partial_plan_selection_strategy
+                    break
+            if self.final_planning_strategy is None:
+                if isinstance(self.initial_planning_strategy, FinalPlanningStrategy):
+                    self.final_planning_strategy = self.initial_planning_strategy
+                else:
+                    self.final_planning_strategy = RandomFinalPlanningStrategy()
+        chain_iterable: Iterable[Optional[tuple[Plan, Optional[Decomposer]]]] = (
+            self.initial_planning_strategy.start_iterable(planning_context, world, decomposers))
+        for current_partial_plan_selection_strategy in self.partial_planning_strategies:
+            chain_iterable = (
+                current_partial_plan_selection_strategy.filter_plans(chain_iterable,
+                                                                     planning_context,
+                                                                     world,
+                                                                     decomposers)
+            )
+        return self.final_planning_strategy.select_plan_from_iterable(chain_iterable,
+                                                                      planning_context,
+                                                                      world,
+                                                                      decomposers)
+
+    def introduce_plan_cache_strategy(self, plan_cache_strategy: PlanCacheStrategy):
+        if self.initial_planning_strategy is not None:
+            self.initial_planning_strategy.introduce_plan_cache_strategy(plan_cache_strategy)
+        for current_partial_plan_selection_strategy in self.partial_planning_strategies:
+            current_partial_plan_selection_strategy.introduce_plan_cache_strategy(plan_cache_strategy)
+        if self.final_planning_strategy is not None:
+            self.final_planning_strategy.introduce_plan_cache_strategy(plan_cache_strategy)
+
+    def prepopulate_plan_cache(self, plan_to_populate: Plan):
+        if self.initial_planning_strategy is not None:
+            self.initial_planning_strategy.prepopulate_plan_cache(plan_to_populate)
+        for current_partial_plan_selection_strategy in self.partial_planning_strategies:
+            current_partial_plan_selection_strategy.prepopulate_plan_cache(plan_to_populate)
+        if self.final_planning_strategy is not None:
+            self.final_planning_strategy.prepopulate_plan_cache(plan_to_populate)
 
 
 @dataclass
@@ -173,7 +444,7 @@ class DelegatingPlanningStrategy(FullPlanningStrategy):
         self.plan_selection_strategy.prepopulate_plan_cache(plan_to_populate)
 
 
-# todo: take advange of self.planning_context.notes["new decomposer uids"]
+# todo: take advantage of self.planning_context.notes["new decomposer uids"]
 class GreedyPlanningStrategy(FullPlanningStrategy,
                              InitialPartialPlanningStrategy,
                              FinalPlanningStrategy):
@@ -354,14 +625,4 @@ class GreedyPlanningStrategy(FullPlanningStrategy,
 
 # standard PlanningStrategies
 # TODO: create these classes
-# Composite (full)
-# Not filter
-# Or filter
-# Random
-# First Valid
-# Arbitrary Initial
-# Greedy
-# plan filter to planning filter
 # decomposer filter to planning filter
-# deepest first filter
-# shallowest first filter
