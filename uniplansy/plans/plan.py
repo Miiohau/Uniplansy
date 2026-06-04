@@ -41,10 +41,12 @@ class Constraint(metaclass=ABCMeta):
 
 
 @dataclass(frozen=True)
-class PlanDeltas:
+class PlanDeltas(HasOptionalUID):
     """a data class to store deltas to the summary statistics of a Plan.
 
     Primarily used by Decomposer.estimate_deltas"""
+    uid: Optional[str] = None
+    decomposer_uid: Optional[str] = None
     total_motivation_delta: float | Fraction = 0
     min_cost_delta: float | Fraction = 0
     max_cost_delta: float | Fraction = 0

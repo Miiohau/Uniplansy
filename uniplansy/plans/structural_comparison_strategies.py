@@ -1,7 +1,8 @@
 """defines DepthComparisonStrategy
 
 """
-from typing import Tuple, Set, Optional
+from fractions import Fraction
+from typing import Tuple, Set, Optional, List
 
 from uniplansy.planner.base import PlanningContext, UIDNode
 from uniplansy.plans.plan import Plan, PlanDeltas
@@ -30,7 +31,10 @@ class DepthComparisonStrategy(PlanComparisonStrategy):
         else:
             return tuple([0])
 
-    def plan_to_tuple_key(self, plan: Plan, planning_context: Optional[PlanningContext] = None) -> Tuple:
+    def plan_to_tuple_key(self,
+                          plan: Plan,
+                          planning_context: Optional[PlanningContext] = None,
+                          ensure_total_ordering: Optional[bool] = None) -> Tuple:
         if planning_context is None:
             assert self.planning_context is not None, "ERROR: No planning_context provided to DepthComparisonStrategy"
             if self.planning_context is None:
@@ -50,19 +54,29 @@ class DepthComparisonStrategy(PlanComparisonStrategy):
         if not self.ascending:
             steps *= -1
         steps += step_mod
-        if self.ensure_total_ordering:
+        should_ensure_total_ordering: bool = self.ensure_total_ordering
+        if ensure_total_ordering is not None:
+            should_ensure_total_ordering = ensure_total_ordering
+        if should_ensure_total_ordering:
             return tuple([steps, str(plan.uid), id(plan)])
         else:
             return tuple([steps])
 
     def plan_plus_delta_to_tuple_key(self, plan: Plan, deltas: PlanDeltas,
                                      planning_context: Optional[PlanningContext] = None) -> Tuple:
-        plan_tuple: tuple = self.plan_to_tuple_key(plan, planning_context)
+        keys: List[float | Fraction | str] = list(self.plan_to_tuple_key(plan, planning_context, False))
         if self.ascending:
-            plan_tuple[0] += 1
+            keys[0] += 1
         else:
-            plan_tuple[0] -= 1
-        return plan_tuple
+            keys[0] -= 1
+        if self.ensure_total_ordering:
+            # to guarantee a total ordering
+            keys.append(str(plan.uid))
+            keys.append(str(deltas.decomposer_uid))
+            keys.append(str(deltas.uid))
+            keys.append(id(plan))
+            keys.append(id(deltas))
+        return tuple(keys)
 
     def get_values_needed(self) -> Set[PlanValueToken]:
         return set()
