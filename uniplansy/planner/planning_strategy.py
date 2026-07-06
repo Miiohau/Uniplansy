@@ -31,7 +31,7 @@ from typing import Optional, Set, List, Iterable
 
 from uniplansy.decomposers.core import Decomposer, decomposer_registry
 from uniplansy.planner.base import PlanningContext, PlanContext, PlanningStrategy, PlanCacheStrategy, UIDNode
-from uniplansy.planner.decomposer_selection_strategy import DecomposerSelectionStrategy
+from uniplansy.planner.decomposer_selection_strategy import FullDecomposerSelectionStrategy
 from uniplansy.planner.plan_selection_strategy import FullPlanSelectionStrategy, PlanFilterStrategy
 from uniplansy.plans.plan import Plan, PlanDeltas
 from uniplansy.plans.plan_comparison_strategy import PlanComparisonStrategy, PlanValueToken
@@ -420,7 +420,7 @@ class DelegatingPlanningStrategy(FullPlanningStrategy):
     decomposer_selection_strategy(property): the DecomposerSelectionStrategy to use to select a decomposer
     """
     plan_selection_strategy: FullPlanSelectionStrategy
-    decomposer_selection_strategy: DecomposerSelectionStrategy
+    decomposer_selection_strategy: FullDecomposerSelectionStrategy
 
     def introduce_plan_cache_strategy(self, plan_cache_strategy: PlanCacheStrategy):
         self.plan_selection_strategy.introduce_plan_cache_strategy(plan_cache_strategy)
