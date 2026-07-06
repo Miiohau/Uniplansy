@@ -51,5 +51,16 @@ Changelog = "https://github.com/Miiohau/Uniplansy/master/CHANGELOG.md"
 [project.optional-dependencies]
 jsonpickle = ["jsonpickle"]
 
+[dependency-groups]
+dev = []
+test = ["pytest"]
+
+[tool.hatch.build]
+exclude = [
+    "/tests",
+    "**/*_test.py",
+    "**/test_*.py",
+]
+
 [tool.hatch.version]
 path = "uniplansy/__about__.py"
