@@ -31,7 +31,7 @@ from typing import Optional, Set, List, Iterable
 
 from uniplansy.decomposers.core import Decomposer, decomposer_registry
 from uniplansy.planner.base import PlanningContext, PlanContext, PlanningStrategy, PlanCacheStrategy, UIDNode
-from uniplansy.planner.decomposer_selection_strategy import FullDecomposerSelectionStrategy
+from uniplansy.planner.decomposer_selection_strategy import FullDecomposerSelectionStrategy, DecomposerFilterStrategy
 from uniplansy.planner.plan_selection_strategy import FullPlanSelectionStrategy, PlanFilterStrategy
 from uniplansy.plans.plan import Plan, PlanDeltas
 from uniplansy.plans.plan_comparison_strategy import PlanComparisonStrategy, PlanValueToken
@@ -272,6 +272,23 @@ class PlanFilterToPlanningFilter(PlanningFilterStrategy):
                     decomposers: set[Decomposer]
                     ) -> bool:
         return self.wrapped_plan_filter_strategy.accept_plan(plan, planning_context, world)
+
+class DecomposerFilterToPlanningFilter(PlanningFilterStrategy):
+    """wraps a PlanFilterStrategy to turn it into a PlanningFilterStrategy"""
+
+    def __init__(self, wrapped_decomposer_filter_strategy: DecomposerFilterStrategy):
+        self.wrapped_decomposer_filter_strategy = wrapped_decomposer_filter_strategy
+
+    def accept_plan(self,
+                    plan: Plan,
+                    decomposer: Optional[Decomposer],
+                    planning_context: PlanningContext,
+                    world: World_Type,
+                    decomposers: set[Decomposer]
+                    ) -> bool:
+        return self.wrapped_decomposer_filter_strategy.accept_decomposer(decomposer,
+                                                                         planning_context.plan_context_by_uid[plan.uid],
+                                                                         world)
 
 
 class RandomFinalPlanningStrategy(FinalPlanningStrategy):
