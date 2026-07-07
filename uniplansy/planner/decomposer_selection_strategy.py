@@ -59,7 +59,7 @@ class DecomposerFilterStrategy(PartialDecomposerSelectionStrategy, metaclass=ABC
     """TODO: docstring"""
 
     @abstractmethod
-    def accept_plan(self, decomposer: Decomposer, plan_context: PlanContext, world: World_Type) -> bool:
+    def accept_decomposer(self, decomposer: Decomposer, plan_context: PlanContext, world: World_Type) -> bool:
         """TODO: docstring
 
         :param decomposer: the decomposer being checked
@@ -75,7 +75,7 @@ class DecomposerFilterStrategy(PartialDecomposerSelectionStrategy, metaclass=ABC
             world: World_Type
     ) -> Iterable[Decomposer]:
         for current_decomposer in decomposers_to_filter:
-            if self.accept_plan(current_decomposer, plan_context, world):
+            if self.accept_decomposer(current_decomposer, plan_context, world):
                 yield current_decomposer
 
 
@@ -118,8 +118,8 @@ class NotDecomposerFilterStrategy(DecomposerFilterStrategy):
     def __init__(self, wrapped_plan_filter_strategy: DecomposerFilterStrategy):
         self.wrapped_plan_filter_strategy = wrapped_plan_filter_strategy
 
-    def accept_plan(self, decomposer: Decomposer, plan_context: PlanContext, world: World_Type) -> bool:
-        return not self.wrapped_plan_filter_strategy.accept_plan(decomposer, plan_context, world)
+    def accept_decomposer(self, decomposer: Decomposer, plan_context: PlanContext, world: World_Type) -> bool:
+        return not self.wrapped_plan_filter_strategy.accept_decomposer(decomposer, plan_context, world)
 
     def introduce_plan_cache_strategy(self, plan_cache_strategy: PlanCacheStrategy):
         self.wrapped_plan_filter_strategy.introduce_plan_cache_strategy(plan_cache_strategy)
@@ -130,9 +130,9 @@ class OrDecomposerFilterStrategy(DecomposerFilterStrategy):
     def __init__(self, wrapped_plan_filter_strategies: List[DecomposerFilterStrategy]):
         self.wrapped_plan_filter_strategies = wrapped_plan_filter_strategies
 
-    def accept_plan(self, decomposer: Decomposer, plan_context: PlanContext, world: World_Type) -> bool:
+    def accept_decomposer(self, decomposer: Decomposer, plan_context: PlanContext, world: World_Type) -> bool:
         for current_plan_filter_strategy in self.wrapped_plan_filter_strategies:
-            if current_plan_filter_strategy.accept_plan(decomposer, plan_context, world):
+            if current_plan_filter_strategy.accept_decomposer(decomposer, plan_context, world):
                 return True
         return False
 
@@ -146,9 +146,9 @@ class AndDecomposerFilterStrategy(DecomposerFilterStrategy):
     def __init__(self, wrapped_plan_filter_strategies: List[DecomposerFilterStrategy]):
         self.wrapped_plan_filter_strategies = wrapped_plan_filter_strategies
 
-    def accept_plan(self, decomposer: Decomposer, plan_context: PlanContext, world: World_Type) -> bool:
+    def accept_decomposer(self, decomposer: Decomposer, plan_context: PlanContext, world: World_Type) -> bool:
         for current_plan_filter_strategy in self.wrapped_plan_filter_strategies:
-            if not current_plan_filter_strategy.accept_plan(decomposer, plan_context, world):
+            if not current_plan_filter_strategy.accept_decomposer(decomposer, plan_context, world):
                 return False
         return True
 
