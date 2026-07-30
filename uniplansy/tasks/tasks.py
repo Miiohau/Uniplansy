@@ -1,7 +1,13 @@
+""" contains the core of the Task framework
+
+Task(class): a class that represents a task.
+It contains a TaskDescription, cost metrics, motivation and a satisfied_percentage
+TaskDescription(class): an immutable description of a task that is safe to reuse across different Plans
+TaskFilter(class): a filter that can filter tasks
+"""
 #TODO: (after upgrading to python 3.12) uncomment @override Decorators
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
-from decimal import Decimal
 from fractions import Fraction
 from math import isfinite
 from typing import Any, Self, Optional, ClassVar, Iterable, Generator, List
@@ -15,7 +21,12 @@ from uniplansy.util.id_registry import IDRegistry, id_registry_registry
 
 @dataclass(frozen=True, repr=True)
 class TaskDescription(HasRequiredUID):
-    """TODO: Docstring for TaskDescription."""
+    """an immutable description of a task that is safe to reuse across different Plans
+
+    uid(attribute): the UID of the task
+    human_understandable_string(attribute): a human understandable string of the task
+    context(attribute): the context of the task
+    """
     uid: str
     human_understandable_string: str
     context: immutabledict[str, Any] = immutabledict({})
@@ -57,8 +68,26 @@ class TaskDescription(HasRequiredUID):
 
 @dataclass(init=False)
 class Task(PlanGraphNode):
-    """TODO: Docstring for Task."""
-    description: TaskDescription
+    """a class that represents a task.
+
+    It contains a TaskDescription, cost metrics, motivation and a satisfied_percentage
+    description(attribute): a description of the task
+    motivation(attribute): the AI motivation for the task.
+    The particular application will define what exactly this means.
+    estimated_cost(attribute): the estimated cost needed to complete the task.
+    The particular application will define if this the average cost or the median cost.
+    min_cost(attribute): the minimum cost needed to complete the task.
+    Note: there is no actual need for this to be the minimum cost. This can be a best guess.
+    Though in some setups it is best if it is under estimate.
+    max_cost(attribute): the maximum cost needed to complete the task.
+    Note: there is no actual need for this to be the maximum cost. This can be a best guess.
+    satisfied_percentage(attribute): How much the task is already satisfied in the Plan. Should be between 0.0 and 1.0.
+    Used to scale the other values when calculating Plan statistics.
+    task_description_id_context(attribute): the IDRegistry where the TaskDescription is registered.
+    Used when saving and loading plans to the disk.
+    get_clamped_satisfied_percentage(method): clamps the satisfied_percentage between two values.
+    defaults to between 0.0 and 1.0."""
+    description: TaskDescription = field(kw_only=True)
     task_description_id_context: Optional[IDRegistry[TaskDescription]] = field(default=None)
     motivation: float | Fraction = 0.0
     estimated_cost: float | Fraction = 0.0
@@ -92,10 +121,9 @@ class Task(PlanGraphNode):
         self.min_cost = min_cost
         self.max_cost = max_cost
 
-
     def get_clamped_satisfied_percentage(self,
-                                         min_value: float | Fraction,
-                                         max_value: float | Fraction) -> float | Fraction:
+                                         min_value: float | Fraction = 0.0,
+                                         max_value: float | Fraction = 1.0) -> float | Fraction:
         """TODO: Docstring for get_clamped_satisfied_percentage.
 
         :param min_value:
@@ -176,19 +204,32 @@ class Task(PlanGraphNode):
             super().__setattr__(name, value)
 
 class TaskFilter(metaclass=ABCMeta):
+    """a filter that can filter tasks
+
+    accept_task(abstractmethod): return true if task is accepted by this filter.
+    This is the only method subclasses need to implement.
+    filter_tasks_generator(method): filter tasks based on a TaskFilter. Returns a generator of Tasks
+    accept_any_task(method): returns true if any of the tasks in tasks are accepted by this filter
+    filter_tasks_list(method): filter tasks based on a TaskFilter. Returns a List of Tasks."""
 
     @abstractmethod
-    def filter_tasks_generator(self, tasks : Iterable[Task]) -> Generator[Task, None, None]:
-        """filter tasks based on a TaskFilter. Returns a generator of Tasks"""
+    def accept_task(self, task: Task) -> bool:
+        """return true if task is accepted by this filter"""
         pass
 
-    def accept_any_task(self, tasks : Iterable[Task]) -> bool:
+    def filter_tasks_generator(self, tasks: Iterable[Task]) -> Generator[Task, None, None]:
+        """filter tasks based on a TaskFilter. Returns a generator of Tasks"""
+        for task in tasks:
+            if not self.accept_task(task):
+                yield task
+
+    def accept_any_task(self, tasks: Iterable[Task]) -> bool:
         """returns true if any of the tasks in tasks are accepted by this filter"""
         task_filter = self.filter_tasks_generator(tasks)
-        first = next(task_filter,None)
+        first = next(task_filter, None)
         task_filter.close()
         return first is not None
 
-    def filter_tasks_list(self, tasks : Iterable[Task]) -> List[Task]:
+    def filter_tasks_list(self, tasks: Iterable[Task]) -> List[Task]:
         """filter tasks based on a TaskFilter. Returns a List of Tasks"""
         return list(self.filter_tasks_generator(tasks))

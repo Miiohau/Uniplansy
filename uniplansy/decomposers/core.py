@@ -12,7 +12,7 @@ decomposer_registry (module variable): an IDRegistry that holds all registered d
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Any, Self, Generic, Optional
 
 from immutabledict import immutabledict
@@ -33,7 +33,7 @@ class DecomposerNode(PlanGraphNode):
     notes(attribute): additional context of how the decomposer was applied to the plan. Mainly used by the Decomposer
     itself in its convert_to_reasoner_graph method
     """
-    node_decomposer: Decomposer
+    node_decomposer: Decomposer = field(kw_only=True)
     notes: immutabledict[str, Any] = immutabledict({})
 
     def __init__(self,
