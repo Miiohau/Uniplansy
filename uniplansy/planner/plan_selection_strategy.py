@@ -21,14 +21,14 @@ from abc import ABCMeta, abstractmethod
 from random import Random
 from typing import List, Set, Optional, Iterable, Tuple
 
-from uniplansy.planner.base import MaybeWantsToKnowPlanCacheStrategy, CanPrepopulateTheCasheOfPlans
+from uniplansy.planner.base import MaybeWantsToKnowPlanCacheStrategy, CanPrepopulateTheCacheOfPlans
 from uniplansy.planner.core import PlanCacheStrategy, PlanningContext
 from uniplansy.plans.plan import Plan
 from uniplansy.plans.plan_comparison_strategy import PlanComparisonStrategy, PlanValueToken
 from uniplansy.util.global_type_vars import World_Type
 
 
-class PlanSelectionStrategy(MaybeWantsToKnowPlanCacheStrategy, CanPrepopulateTheCasheOfPlans, metaclass=ABCMeta):
+class PlanSelectionStrategy(MaybeWantsToKnowPlanCacheStrategy, CanPrepopulateTheCacheOfPlans, metaclass=ABCMeta):
     """a strategy to select a plan in planning_context."""
 
 

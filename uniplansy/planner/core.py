@@ -11,9 +11,11 @@ UIDNode (class): Holds the data on the planning tree
 #  remove "from __future__ import annotations"
 from __future__ import annotations
 
+import copy
+from collections import deque
 from typing import List, Generic
 
-from uniplansy.decomposers.core import Decomposer
+from uniplansy.decomposers.core import Decomposer, DecomposerNode
 from uniplansy.planner.base import PlanContext, UIDNode, PlanningContext, PlanCacheStrategy, DecomposerContext
 from uniplansy.planner.plan_selection_strategy import FullPlanSelectionStrategy
 from uniplansy.planner.planning_strategy import FullPlanningStrategy
@@ -47,7 +49,8 @@ class Planner(Generic[World_Type]):
                  final_plan_selection_strategy: FullPlanSelectionStrategy,
                  cache_strategy: PlanCacheStrategy,
                  decomposers: set[Decomposer],
-                 plan_uid_supplier: UIDSupplier = default_guid_supplier):
+                 plan_uid_supplier: UIDSupplier = default_guid_supplier,
+                 assert_that_plans_are_acyclic_graphs: bool = True):
         self.planning_strategy = planning_strategy
         self.stopping_strategy = stopping_strategy
         self.final_plan_selection_strategy = final_plan_selection_strategy
@@ -55,6 +58,7 @@ class Planner(Generic[World_Type]):
         self.decomposers = decomposers
         self.node_id_context: IDRegistry[PlanGraphNode] = IDRegistry()
         self.task_description_id_context: IDRegistry[TaskDescription] = IDRegistry()
+        self.assert_that_plans_are_acyclic_graphs = assert_that_plans_are_acyclic_graphs
         root_name: str = "root"
         root_plan_context: PlanContext = PlanContext(plan=Plan(
             uid=root_name,
@@ -81,7 +85,7 @@ class Planner(Generic[World_Type]):
 
         :return: the final selected plan
         """
-        self.cache_strategy.load_plans(self.planning_context)
+        self.cache_strategy.manage_active_plans(self.planning_context, world, initializing=True)
         active_plan_uids: List[str] = [current_plan_context.plan.uid for current_plan_context in
                                        self.planning_context.plan_context_by_uid.values()
                                        if (current_plan_context is not None) and
@@ -89,11 +93,19 @@ class Planner(Generic[World_Type]):
                                        (current_plan_context.plan.uid is not None)]
         for current_plan_context_id in active_plan_uids:
             current_plan_context = self.planning_context.plan_context_by_uid[current_plan_context_id]
-            if not current_plan_context.plan.valid(world):
+            update_succeeded: bool = True
+            old_version = copy.deepcopy(current_plan_context.plan)
+            for current_node in current_plan_context.plan.nodes_by_UID.values():
+                if current_node is DecomposerNode:
+                    update_succeeded = update_succeeded and current_node.node_decomposer.update_plan(
+                        current_plan_context.plan, current_node, world)
+            if not update_succeeded:
+                current_plan_context.plan = old_version
+            if (not update_succeeded) or (
+                    not current_plan_context.plan.valid(world, check_planning_time_constraints=False)):
                 if self.cache_strategy.should_save_plan(current_plan_context, self.planning_context):
-                    self.cache_strategy.save_plan(current_plan_context, self.planning_context)
+                    self.cache_strategy.save_plan(current_plan_context, self.planning_context, invalid=True)
                 self.planning_context.plan_context_by_uid[current_plan_context.plan.uid].plan = None
-        self.cache_strategy.manage_active_plans(self.planning_context)
         while not self.stopping_strategy.should_stop(self.planning_context):
             selected_plan, selected_decomposer = self.planning_strategy.plan(
                 self.planning_context,
@@ -123,6 +135,12 @@ class Planner(Generic[World_Type]):
                     selected_decomposer.uid]
                 for current_new_plan in new_plans:
                     current_new_plan.freeze()
+                    if not current_new_plan.valid(world, check_world_state_constraints=False):
+                        continue
+                    if __debug__:
+                        if self.assert_that_plans_are_acyclic_graphs:
+                            assert self._plan_graph_is_acyclic(
+                                current_new_plan), "cyclic plans can be harder to handle and must be explictly allowed"
                     self.planning_strategy.prepopulate_plan_cache(current_new_plan)
                     found_match: bool = False
                     for current_old_plan in self.planning_context.plan_context_by_uid.values():
@@ -141,6 +159,28 @@ class Planner(Generic[World_Type]):
                 self.planning_context.notes["new plan uids"] = [current_new_plan.uid
                                                                 for current_new_plan in
                                                                 new_plans]
-            self.cache_strategy.manage_active_plans(self.planning_context)
-        self.cache_strategy.manage_active_plans(self.planning_context, finalizing=True)
-        return self.final_plan_selection_strategy.select_plan(self.planning_context, finalizing=True, world=world)
+            self.cache_strategy.manage_active_plans(self.planning_context, world)
+        returned_plan = self.final_plan_selection_strategy.select_plan(self.planning_context, finalizing=True,
+                                                                       world=world)
+        self.cache_strategy.manage_active_plans(self.planning_context, world, finalizing=True)
+        return returned_plan
+
+    @staticmethod
+    def _plan_graph_is_acyclic(current_new_plan: Plan) -> bool:
+        queue: deque[PlanGraphNode] = deque()
+        for plan_node in current_new_plan.nodes_by_UID.values():
+            if len(plan_node.parents) == 0:
+                queue.append(plan_node)
+        visited: set[PlanGraphNode] = set()
+        while len(queue) > 0:
+            current_node = queue.popleft()
+            visited.add(current_node)
+            for current_child in current_node.children:
+                if current_child not in visited:
+                    visited_all_parents: bool = True
+                    for current_parent in current_child.parents:
+                        if not current_parent not in visited:
+                            visited_all_parents = False
+                    if visited_all_parents:
+                        queue.append(current_child)
+        return len(visited) == len(current_new_plan.nodes_by_UID.values())

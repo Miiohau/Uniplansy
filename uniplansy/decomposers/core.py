@@ -141,6 +141,17 @@ class Decomposer(HasRequiredUID, Generic[World_Type], metaclass=ABCMeta):
         :return: a list of plans with one or more tasks decomposed"""
         pass
 
+    # noinspection PyMethodMayBeStatic
+    # noinspection PyUnusedLocal
+    def update_plan(self, plan: Plan, node: DecomposerNode, world: World_Type) -> bool:
+        """updates the plan based on updated world state and updated tasks
+
+        :param node: the DecomposerNode that the decomposer should work from.
+        :param plan: the plan to update
+        :param world: the world context used to update
+        :return: true if the update was successful, false otherwise"""
+        return True
+
     @abstractmethod
     def convert_to_reasoner_graph(self,
                                   node: DecomposerNode,

@@ -31,11 +31,17 @@ class Constraint(metaclass=ABCMeta):
     """A Constraint represents a condition that must remain true for the plan to remain valid"""
 
     @abstractmethod
-    def satisfied(self, plan: Plan, world: World_Type):
+    def satisfied(self,
+                  plan: Plan,
+                  world: World_Type,
+                  check_planning_time_constraints: bool = True,
+                  check_world_state_constraints: bool = True) -> bool:
         """ returns if the Constraint is satisfied.
 
         :param world: the world context to check the constraint in
         :param plan: a pointer to the plan the constraint being checked in the context of
+        :param check_world_state_constraints: whether constraints on world state should be checked
+        :param check_planning_time_constraints: whether constraints on the plan itself should be checked
         """
         pass
 
@@ -93,13 +99,22 @@ class Plan(HasOptionalUID, FreezableObject, Generic[World_Type]):
     _cached_at_least_one_unsatisfied_task: Optional[bool] = field(default=None, init=False, compare=False)
     _cached_at_least_one_concrete_action: Optional[bool] = field(default=None, init=False, compare=False)
 
-    def valid(self, world: World_Type) -> bool:
+    def valid(self,
+              world: World_Type,
+              check_planning_time_constraints: bool = True,
+              check_world_state_constraints: bool = True) -> bool:
         """ return True if plan is valid, False otherwise
 
+        :param world: the world context to check the plan in
+        :param check_world_state_constraints: whether constraints on world state should be checked
+        :param check_planning_time_constraints: whether constraints on the plan itself should be checked
         :return: True if plan is valid, False otherwise
         """
         for cur_constraint in self.constraints:
-            if not cur_constraint.satisfied(self, world):
+            if not cur_constraint.satisfied(self,
+                                            world,
+                                            check_planning_time_constraints,
+                                            check_world_state_constraints):
                 return False
         return True
 

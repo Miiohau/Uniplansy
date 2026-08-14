@@ -6,6 +6,7 @@ RegistryKeyNotFoundError(Error): an error raised when a key is not found in an I
 RegistryKeyAlreadyExistsError(Error): an error raised when a key already exists in an IDRegistry
 id_registry_registry(global): the global registry of IDIDRegistries
 """
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import TypeVar, Generic, Optional, Any
 
@@ -131,6 +132,10 @@ class IDRegistry(HasRequiredUID, Generic[Registered_Object]):
             id_registry_registry.retire_referred_object(self.uid)
         except RegistryKeyNotFoundError:
             pass
+
+    def registered_objects(self) -> Iterable[Registered_Object]:
+        """returns an iterable of the registered objects"""
+        return self._registry.values()
 
 
 """the global registry of IDIDRegistries"""

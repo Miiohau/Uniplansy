@@ -35,13 +35,14 @@ class TestDecomposer(Decomposer):
 
     # noinspection PyUnusedLocal
     @staticmethod
-    def test_act(world, context) -> bool:
+    def my_act(world, context) -> bool:
+        """a test action. exists only for testing purposes."""
         print("this is a test")
         return True
 
     def convert_to_reasoner_graph(self, node: DecomposerNode,
                                   node_id_to_builder_id: dict[str, str]) -> ReasonerTemplate:
-        new_template = SimpleReasonerBuilder(act_delegate=TestDecomposer.test_act)
+        new_template = SimpleReasonerBuilder(act_delegate=TestDecomposer.my_act)
         new_template.preferred_name = "actor"
         return new_template
 
