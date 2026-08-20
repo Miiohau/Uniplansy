@@ -72,7 +72,6 @@ class PlanDeltas(HasOptionalUID):
                     raise TypeError(f"{value} is not finite. floats assigned to {name} must be finite")
 
 
-# TODO: add the concept of constraints that have to remain true for the Plan to remain valid
 @dataclass(init=True, repr=True)
 class Plan(HasOptionalUID, FreezableObject, Generic[World_Type]):
     """TODO:docstring"""
