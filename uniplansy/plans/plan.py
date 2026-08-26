@@ -98,6 +98,8 @@ class Plan(HasOptionalUID, FreezableObject, Generic[World_Type]):
     _cached_at_least_one_unsatisfied_task: Optional[bool] = field(default=None, init=False, compare=False)
     _cached_at_least_one_concrete_action: Optional[bool] = field(default=None, init=False, compare=False)
 
+    # TODO: add a tag system for faster and semantic lookups
+
     def valid(self,
               world: World_Type,
               check_planning_time_constraints: bool = True,

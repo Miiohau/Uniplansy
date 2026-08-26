@@ -23,6 +23,7 @@ from uniplansy.util.id_registry import IDRegistry, id_registry_registry
 class TaskDescription(HasRequiredUID):
     """an immutable description of a task that is safe to reuse across different Plans
 
+    The idea is this is self-contained task, and you shouldn't need to look at it parents to decompose it
     uid(attribute): the UID of the task
     human_understandable_string(attribute): a human understandable string of the task
     context(attribute): the context of the task
@@ -30,6 +31,11 @@ class TaskDescription(HasRequiredUID):
     uid: str
     human_understandable_string: str
     context: immutabledict[str, Any] = immutabledict({})
+
+    # TODO: add constructor that bases the UID on the human_understandable_string
+    # optionally takes an task_description_id_context
+
+    # TODO: add a tag system for faster and semantic lookups
 
     # @override
     def __str__(self) -> str:
@@ -94,6 +100,8 @@ class Task(PlanGraphNode):
     min_cost: float | Fraction = 0.0
     max_cost: float | Fraction = float("inf")
     satisfied_percentage: float | Fraction = 0.0
+
+    # TODO: add constructor that bases the UID on the TaskDescription.UID
 
     def __init__(self,
                  uid: str,
