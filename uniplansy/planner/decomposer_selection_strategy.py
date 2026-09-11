@@ -43,28 +43,39 @@ class FullDecomposerSelectionStrategy(DecomposerSelectionStrategy, metaclass=ABC
 
 
 class PartialDecomposerSelectionStrategy(DecomposerSelectionStrategy, metaclass=ABCMeta):
+    """a PartialDecomposerSelectionStrategy filters decomposers
+
+    filter_decomposers(method): filters decomposer steam
+    introduce_plan_cache_strategy(method):introduces a PlanCacheStrategy to the FullDecomposerSelectionStrategy
+    which it may save."""
 
     def filter_decomposers(self, decomposers_to_filter: Iterable[Decomposer], context: PlanContext,
                            world: World_Type) -> Iterable[Decomposer]:
-        """TODO: docstring
+        """filters decomposer steam
 
-                :param decomposers_to_filter:
-                :param context:
-                :param world:
+                :param decomposers_to_filter: the input decomposers to filter
+                :param context: the plan context of the plan
+                :param world: the world being planned in
                 """
         pass
 
 
 class DecomposerFilterStrategy(PartialDecomposerSelectionStrategy, metaclass=ABCMeta):
-    """TODO: docstring"""
+    """a DecomposerFilterStrategy filters decomposers
+
+    filter_decomposers(method): filters decomposer steam
+    accept_decomposer(method): accepts or rejects the decomposer
+    introduce_plan_cache_strategy(method):introduces a PlanCacheStrategy to the FullDecomposerSelectionStrategy
+    which it may save."""
 
     @abstractmethod
     def accept_decomposer(self, decomposer: Decomposer, plan_context: PlanContext, world: World_Type) -> bool:
-        """TODO: docstring
+        """accepts or rejects the decomposer
 
         :param decomposer: the decomposer being checked
         :param plan_context: the plan context of the plan
         :param world: the world being planed in
+        :return: if the decomposer is accepted or not by this filter
         """
         pass
 
@@ -355,5 +366,3 @@ class GreedyDecomposerSelectionStrategy(FullDecomposerSelectionStrategy, Initial
                 selected_decomposer = None
         return selected_decomposer
 
-# standard PlanningStrategies
-# TODO: create these classes

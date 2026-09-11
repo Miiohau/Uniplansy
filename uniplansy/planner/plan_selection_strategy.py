@@ -68,12 +68,12 @@ class PartialPlanSelectionStrategy(PlanSelectionStrategy, metaclass=ABCMeta):
             world: World_Type,
             finalizing: bool = False
     ) -> Iterable[Plan]:
-        """TODO: docstring
+        """filters the plan stream
 
-        :param plans_to_filter:
-        :param planning_context:
-        :param world:
-        :param finalizing:
+        :param plans_to_filter: the plan steam to filter
+        :param planning_context: the planning context
+        :param world: the world being planned in
+        :param finalizing: whether it is being called to select the final returned plan
         """
         pass
 
