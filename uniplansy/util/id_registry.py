@@ -8,11 +8,11 @@ id_registry_registry(global): the global registry of IDIDRegistries
 """
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import TypeVar, Generic, Optional, Any
+from typing import Optional, Any
 
+from uniplansy.util.has_uid import HasRequiredUID
 from uniplansy.util.uid_suppliers.default_guid_supplier import default_guid_supplier
 from uniplansy.util.uid_suppliers.uid_supplier import UIDSupplier
-from uniplansy.util.has_uid import HasRequiredUID
 
 
 class RegistryKeyError(ValueError):
@@ -38,12 +38,8 @@ class RegistryKeyAlreadyExistsError(RegistryKeyError):
         super().__init__(final_msg, *args)
 
 
-#TODO: (after upgrading to python 3.12) Remove TypeVars and convert to new Type Parameter Syntax
-Registered_Object = TypeVar('Registered_Object')
-
-
 @dataclass
-class IDRegistry(HasRequiredUID, Generic[Registered_Object]):
+class IDRegistry[Registered_Object](HasRequiredUID):
     """a registry of objects with unique IDs.
 
     register(method): registers an object under a unique ID

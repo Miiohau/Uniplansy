@@ -13,15 +13,14 @@ from typing import Optional, List, Tuple, Iterable
 from uniplansy.decomposers.core import Decomposer, decomposer_registry
 from uniplansy.planner.base import PlanContext, MaybeWantsToKnowPlanCacheStrategy, PlanCacheStrategy
 from uniplansy.plans.plan_comparison_strategy import PlanComparisonStrategy
-from uniplansy.util.global_type_vars import World_Type
 from uniplansy.util.id_registry import RegistryKeyNotFoundError
 
 
-class DecomposerSelectionStrategy(MaybeWantsToKnowPlanCacheStrategy, metaclass=ABCMeta):
+class DecomposerSelectionStrategy[World_Type](MaybeWantsToKnowPlanCacheStrategy, metaclass=ABCMeta):
     """a DecomposerSelectionStrategy selects a decomposer to apply to a plan."""
 
 
-class FullDecomposerSelectionStrategy(DecomposerSelectionStrategy, metaclass=ABCMeta):
+class FullDecomposerSelectionStrategy[World_Type](DecomposerSelectionStrategy[World_Type], metaclass=ABCMeta):
     """a FullDecomposerSelectionStrategy selects a decomposer to apply to a plan
 
     select_decomposer(method): selects a decomposer to apply to the plan
@@ -42,7 +41,7 @@ class FullDecomposerSelectionStrategy(DecomposerSelectionStrategy, metaclass=ABC
         pass
 
 
-class PartialDecomposerSelectionStrategy(DecomposerSelectionStrategy, metaclass=ABCMeta):
+class PartialDecomposerSelectionStrategy[World_Type](DecomposerSelectionStrategy[World_Type], metaclass=ABCMeta):
     """a PartialDecomposerSelectionStrategy filters decomposers
 
     filter_decomposers(method): filters decomposer steam
@@ -60,7 +59,7 @@ class PartialDecomposerSelectionStrategy(DecomposerSelectionStrategy, metaclass=
         pass
 
 
-class DecomposerFilterStrategy(PartialDecomposerSelectionStrategy, metaclass=ABCMeta):
+class DecomposerFilterStrategy[World_Type](PartialDecomposerSelectionStrategy[World_Type], metaclass=ABCMeta):
     """a DecomposerFilterStrategy filters decomposers
 
     filter_decomposers(method): filters decomposer steam
@@ -90,7 +89,7 @@ class DecomposerFilterStrategy(PartialDecomposerSelectionStrategy, metaclass=ABC
                 yield current_decomposer
 
 
-class InitialPartialDecomposerSelectionStrategy(DecomposerSelectionStrategy):
+class InitialPartialDecomposerSelectionStrategy[World_Type](DecomposerSelectionStrategy[World_Type]):
     """TODO: docstring"""
 
     @abstractmethod
@@ -105,7 +104,7 @@ class InitialPartialDecomposerSelectionStrategy(DecomposerSelectionStrategy):
         pass
 
 
-class FinalPartialDecomposerSelectionStrategy(DecomposerSelectionStrategy):
+class FinalPartialDecomposerSelectionStrategy[World_Type](DecomposerSelectionStrategy[World_Type]):
     """TODO: docstring"""
 
     @abstractmethod
@@ -124,7 +123,7 @@ class FinalPartialDecomposerSelectionStrategy(DecomposerSelectionStrategy):
         pass
 
 
-class NotDecomposerFilterStrategy(DecomposerFilterStrategy):
+class NotDecomposerFilterStrategy[World_Type](DecomposerFilterStrategy[World_Type]):
 
     def __init__(self, wrapped_plan_filter_strategy: DecomposerFilterStrategy):
         self.wrapped_plan_filter_strategy = wrapped_plan_filter_strategy
@@ -136,7 +135,7 @@ class NotDecomposerFilterStrategy(DecomposerFilterStrategy):
         self.wrapped_plan_filter_strategy.introduce_plan_cache_strategy(plan_cache_strategy)
 
 
-class OrDecomposerFilterStrategy(DecomposerFilterStrategy):
+class OrDecomposerFilterStrategy[World_Type](DecomposerFilterStrategy[World_Type]):
 
     def __init__(self, wrapped_plan_filter_strategies: List[DecomposerFilterStrategy]):
         self.wrapped_plan_filter_strategies = wrapped_plan_filter_strategies
@@ -152,7 +151,7 @@ class OrDecomposerFilterStrategy(DecomposerFilterStrategy):
             current_partial_plan_selection_strategy.introduce_plan_cache_strategy(plan_cache_strategy)
 
 
-class AndDecomposerFilterStrategy(DecomposerFilterStrategy):
+class AndDecomposerFilterStrategy[World_Type](DecomposerFilterStrategy[World_Type]):
 
     def __init__(self, wrapped_plan_filter_strategies: List[DecomposerFilterStrategy]):
         self.wrapped_plan_filter_strategies = wrapped_plan_filter_strategies
@@ -168,7 +167,7 @@ class AndDecomposerFilterStrategy(DecomposerFilterStrategy):
             current_partial_plan_selection_strategy.introduce_plan_cache_strategy(plan_cache_strategy)
 
 
-class RandomPlanSelectionStrategy(FinalPartialDecomposerSelectionStrategy):
+class RandomPlanSelectionStrategy[World_Type](FinalPartialDecomposerSelectionStrategy[World_Type]):
     """TODO: docstring"""
 
     def __init__(self, limit: int = 100, rnd: Random = Random()):
@@ -192,7 +191,7 @@ class RandomPlanSelectionStrategy(FinalPartialDecomposerSelectionStrategy):
         return self.rnd.choice(decomposer_list)
 
 
-class FirstValidPlanSelectionStrategy(FinalPartialDecomposerSelectionStrategy):
+class FirstValidPlanSelectionStrategy[World_Type](FinalPartialDecomposerSelectionStrategy[World_Type]):
 
     def select_plan_from_iterable(
             self,
@@ -203,7 +202,7 @@ class FirstValidPlanSelectionStrategy(FinalPartialDecomposerSelectionStrategy):
         return next(iter(decomposers_to_filter))
 
 
-class ArbitraryInitialPartialPlanSelectionStrategy(InitialPartialDecomposerSelectionStrategy):
+class ArbitraryInitialPartialPlanSelectionStrategy[World_Type](InitialPartialDecomposerSelectionStrategy[World_Type]):
     """TODO: docstring"""
 
     def start_iterable(self, plan_context: PlanContext, world: World_Type, decomposers: set[Decomposer]) -> Iterable[
@@ -213,7 +212,7 @@ class ArbitraryInitialPartialPlanSelectionStrategy(InitialPartialDecomposerSelec
                 if (current_decomposer.applicable(plan_context.plan, world)))
 
 
-class CompositeFullPlanSelectionStrategy(FullDecomposerSelectionStrategy):
+class CompositeFullPlanSelectionStrategy[World_Type](FullDecomposerSelectionStrategy[World_Type]):
     """TODO: docstring
 
     needs a initial/final decomposer selection strategy but will try to find suitable strategies in
@@ -279,8 +278,9 @@ class CompositeFullPlanSelectionStrategy(FullDecomposerSelectionStrategy):
             self.final_decomposer_selection_strategy.introduce_plan_cache_strategy(plan_cache_strategy)
 
 
-class GreedyDecomposerSelectionStrategy(FullDecomposerSelectionStrategy, InitialPartialDecomposerSelectionStrategy,
-                                        FinalPartialDecomposerSelectionStrategy):
+class GreedyDecomposerSelectionStrategy[World_Type](FullDecomposerSelectionStrategy[World_Type],
+                                                    InitialPartialDecomposerSelectionStrategy[World_Type],
+                                                    FinalPartialDecomposerSelectionStrategy[World_Type]):
     """a greedy DecomposerSelectionStrategy that returns Decomposers in sort order
         (determined by plan_comparison_strategy: PlanComparisonStrategy)"""
 

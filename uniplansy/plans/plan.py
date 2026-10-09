@@ -4,7 +4,6 @@ Plan (Class): TODO:docstring
 PlanGraphNode (Class): a graph node of the plan
 PlanDeltas (class): a data class to store deltas to the summary statistics of a Plan
 """
-#TODO: (after upgrading to python 3.12) uncomment @override Decorators
 #TODO: (after updating to python 3.14 (in which Annotations are lazily evaluated by default))
 # remove "from __future__ import annotations"
 from __future__ import annotations
@@ -15,19 +14,18 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field, FrozenInstanceError
 from fractions import Fraction
 from math import isfinite
-from typing import Optional, List, Self, Any, ClassVar, Generic
+from typing import Optional, List, Self, Any, ClassVar, override
 
 from immutabledict import immutabledict
 
 from uniplansy.plans.plan_graph_node import PlanGraphNode
 from uniplansy.tasks.tasks import Task, TaskDescription, TaskFilter
 from uniplansy.util.FreezableObject import FreezableObject
-from uniplansy.util.global_type_vars import World_Type
 from uniplansy.util.has_uid import HasOptionalUID
 from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError, id_registry_registry
 
 
-class Constraint(metaclass=ABCMeta):
+class Constraint[World_Type](metaclass=ABCMeta):
     """A Constraint represents a condition that must remain true for the plan to remain valid"""
 
     @abstractmethod
@@ -67,13 +65,14 @@ class PlanDeltas(HasOptionalUID):
 
         def __post_init__(self):
             for name in Task.NO_SPECIAL_VALUES_ALLOWED_ATTRIBUTES:
-                value = getattr(self, name)
+                value = getattr(self, name, None)
                 if isinstance(value, float) and not isfinite(value):
                     raise TypeError(f"{value} is not finite. floats assigned to {name} must be finite")
 
 
-@dataclass(init=True, repr=True)
-class Plan(HasOptionalUID, FreezableObject, Generic[World_Type]):
+# readd HasOptionalUID
+# @dataclass(init=False, repr=True)
+class Plan[World_Type](FreezableObject):
     """TODO:docstring"""
     node_id_context: IDRegistry[PlanGraphNode]
     task_description_id_context: IDRegistry[TaskDescription]
@@ -97,6 +96,28 @@ class Plan(HasOptionalUID, FreezableObject, Generic[World_Type]):
     _cached_leaf_tasks: Optional[list[Task]] = field(default=None, init=False, compare=False)
     _cached_at_least_one_unsatisfied_task: Optional[bool] = field(default=None, init=False, compare=False)
     _cached_at_least_one_concrete_action: Optional[bool] = field(default=None, init=False, compare=False)
+
+    def __init__(self, node_id_context: IDRegistry[PlanGraphNode],
+                 task_description_id_context: IDRegistry[TaskDescription], uid: Optional[str]):
+        super().__init__()
+        self.node_id_context: IDRegistry[PlanGraphNode] = node_id_context
+        self.task_description_id_context: IDRegistry[TaskDescription] = task_description_id_context
+        self.uid: Optional[str] = uid
+        self.tasks_by_UID: dict[str, Task] = {}
+        self.nodes_by_UID: dict[str, PlanGraphNode] = {}
+        self.constraints: List[Constraint] = []
+        self._cached_total_motivation = None
+        self._cached_min_cost = None
+        self._cached_max_cost = None
+        self._cached_average_satisfied_percentage = None
+        self._cached_median_satisfied_percentage = None
+        self._cached_tasks_fully_satisfied_percentage = None
+        self._cached_concrete_action_percentage = None
+        self._cached_estimated_cost = None
+        self._cached_unsatisfied_tasks = None
+        self._cached_leaf_tasks = None
+        self._cached_at_least_one_unsatisfied_task = None
+        self._cached_at_least_one_concrete_action = None
 
     # TODO: add a tag system for faster and semantic lookups
 
@@ -138,14 +159,14 @@ class Plan(HasOptionalUID, FreezableObject, Generic[World_Type]):
         if isinstance(preferred_type, float) or issubclass(preferred_type, float) or preferred_type is float:
             total: float = 0
             for cur_task in self.tasks_by_UID.values():
-                total += (float(cur_task.getattr(task_attribute)) * (
+                total += (float(getattr(cur_task, task_attribute)) * (
                         float(1) - float(cur_task.get_clamped_satisfied_percentage(0, 1))
                 ))
             return total
         else:
             total: Fraction = Fraction()
             for cur_task in self.tasks_by_UID.values():
-                total += (Fraction(cur_task.getattr(task_attribute)) * (
+                total += (Fraction(getattr(cur_task, task_attribute)) * (
                         Fraction(1) - Fraction(cur_task.get_clamped_satisfied_percentage(0, 1))
                 ))
             return total
@@ -286,7 +307,11 @@ class Plan(HasOptionalUID, FreezableObject, Generic[World_Type]):
                     if not (key in self.nodes_by_UID.keys()):
                         total_tasks += 1
                         total += Fraction(value)
-            r_value: Fraction = total / total_tasks
+            r_value: Fraction
+            if total_tasks >= 1:
+                r_value = Fraction(total, total_tasks)
+            else:
+                r_value = Fraction(1, 1)
             if self.frozen and deltas is None:
                 self._cached_average_satisfied_percentage = r_value
             return r_value
@@ -318,7 +343,11 @@ class Plan(HasOptionalUID, FreezableObject, Generic[World_Type]):
             for key, value in deltas.satisfied_percentage_deltas.items():
                 if not (key in self.nodes_by_UID.keys()):
                     satisfied_percentage_values.append(value)
-        r_value: float | Fraction = statistics.median(satisfied_percentage_values)
+        r_value: float | Fraction
+        if len(satisfied_percentage_values) >= 1:
+            r_value = statistics.median(satisfied_percentage_values)
+        else:
+            r_value = 1
         if self.frozen and deltas is None:
             self._cached_median_satisfied_percentage = r_value
         if preferred_type is not None:
@@ -354,7 +383,11 @@ class Plan(HasOptionalUID, FreezableObject, Generic[World_Type]):
                     total_tasks += 1
                     if value >= 1:
                         tasks_satisfied_count += 1
-        r_value: Fraction = Fraction(tasks_satisfied_count, total_tasks)
+        r_value: Fraction
+        if total_tasks >= 1:
+            r_value = Fraction(tasks_satisfied_count, total_tasks)
+        else:
+            r_value = Fraction(1, 1)
         if self.frozen and deltas is None:
             self._cached_tasks_fully_satisfied_percentage = r_value
         return r_value
@@ -392,7 +425,11 @@ class Plan(HasOptionalUID, FreezableObject, Generic[World_Type]):
                     total_leaf_nodes += 1
                     if value >= 1:
                         concrete_action_count += 1
-        r_value: Fraction = Fraction(concrete_action_count, total_leaf_nodes)
+        r_value: Fraction
+        if total_leaf_nodes >= 1:
+            r_value = Fraction(concrete_action_count, total_leaf_nodes)
+        else:
+            r_value = Fraction(1, 1)
         if self.frozen and deltas is None:
             self._cached_concrete_action_percentage = r_value
         return r_value
@@ -546,7 +583,7 @@ class Plan(HasOptionalUID, FreezableObject, Generic[World_Type]):
                 cur_child.parents.add(new_node)
             self.add_node(cur_child)
 
-    # @override
+    @override
     def freeze(self):
         """freeze the plan. Meaning it is protected from modification"""
         for node in self.nodes_by_UID.values():
@@ -555,7 +592,7 @@ class Plan(HasOptionalUID, FreezableObject, Generic[World_Type]):
             node.freeze()
         super().freeze()
 
-    # @override
+    @override
     def unfreeze(self):
         """unfreeze the plan. Meaning it is no longer protected from modification"""
         super().unfreeze()
@@ -572,7 +609,7 @@ class Plan(HasOptionalUID, FreezableObject, Generic[World_Type]):
         self._cached_average_satisfied_percentage = None
         self._cached_median_satisfied_percentage = None
 
-    # @override
+    @override
     def set_matching_deep_copy(self, other: Self, memo):
         """takes a raw instance of the Plan and
         fills its fields from this instance in the context of a deep copy.
@@ -582,6 +619,8 @@ class Plan(HasOptionalUID, FreezableObject, Generic[World_Type]):
         See https://docs.python.org/3/library/copy.html#object.__deepcopy__for more information
         """
         super().set_matching_deep_copy(other, memo)
+        prior_frozen = other.frozen
+        other.frozen = False
         other.nodes_by_UID = copy.deepcopy(self.nodes_by_UID, memo)
         other.tasks_by_UID = copy.deepcopy(self.tasks_by_UID, memo)
         other._cached_leaf_tasks = copy.deepcopy(self._cached_leaf_tasks, memo)
@@ -592,11 +631,12 @@ class Plan(HasOptionalUID, FreezableObject, Generic[World_Type]):
         other._cached_total_motivation = self._cached_total_motivation
         other._cached_average_satisfied_percentage = self._cached_average_satisfied_percentage
         other._cached_median_satisfied_percentage = self._cached_median_satisfied_percentage
+        other.frozen = prior_frozen
 
-    # @override
     def __deepcopy__(self, memo):
         new_copy: Self = type(self)(node_id_context=self.node_id_context,
-                                    task_description_id_context=self.task_description_id_context)
+                                    task_description_id_context=self.task_description_id_context,
+                                    uid=None)
         self.set_matching_deep_copy(new_copy, memo)
         return new_copy
 

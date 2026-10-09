@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import copy
 from collections import deque
-from typing import List, Generic
+from typing import List, Optional
 
 from uniplansy.decomposers.core import Decomposer, DecomposerNode
 from uniplansy.planner.base import PlanContext, UIDNode, PlanningContext, PlanCacheStrategy, DecomposerContext
@@ -23,14 +23,13 @@ from uniplansy.planner.stopping_strategy import StoppingStrategy
 from uniplansy.plans.plan import Plan, PlanGraphNode, PlanDeltas
 from uniplansy.reasoners.graph import ReasonerBuilder
 from uniplansy.tasks.tasks import TaskDescription
-from uniplansy.util.global_type_vars import World_Type
 from uniplansy.util.id_registry import IDRegistry
 from uniplansy.util.uid_suppliers.default_guid_supplier import default_guid_supplier
 from uniplansy.util.uid_suppliers.uid_supplier import UIDSupplier
 from uniplansy.util.uid_suppliers.wrappers.wrappers import UniqueInDictUIDSupplierWrapper
 
 
-class Planner(Generic[World_Type]):
+class Planner[World_Type]:
     """responsible for running the planning algorithm
 
     resume_planning (method): Resumes planning the planning loop
@@ -60,7 +59,7 @@ class Planner(Generic[World_Type]):
         self.task_description_id_context: IDRegistry[TaskDescription] = IDRegistry()
         self.assert_that_plans_are_acyclic_graphs = assert_that_plans_are_acyclic_graphs
         root_name: str = "root"
-        root_plan_context: PlanContext = PlanContext(plan=Plan(
+        root_plan_context: PlanContext = PlanContext(plan=Plan[World_Type](
             uid=root_name,
             node_id_context=self.node_id_context,
             task_description_id_context=self.task_description_id_context
@@ -94,7 +93,7 @@ class Planner(Generic[World_Type]):
         for current_plan_context_id in active_plan_uids:
             current_plan_context = self.planning_context.plan_context_by_uid[current_plan_context_id]
             update_succeeded: bool = True
-            old_version = copy.deepcopy(current_plan_context.plan)
+            old_version: Optional[Plan[World_Type]] = copy.deepcopy(current_plan_context.plan)
             for current_node in current_plan_context.plan.nodes_by_UID.values():
                 if current_node is DecomposerNode:
                     update_succeeded = update_succeeded and current_node.node_decomposer.update_plan(
@@ -115,7 +114,11 @@ class Planner(Generic[World_Type]):
             if selected_plan is None:
                 break
             if selected_decomposer is None:
+                if not (selected_plan.uid in self.planning_context.decomposer_context_by_uid):
+                    self.planning_context.decomposer_context_by_uid[selected_plan.uid] = {}
                 parent_uid_node: UIDNode = self.planning_context.plan_uid_node_by_uid[selected_plan.uid]
+                if not (selected_plan.uid in self.planning_context.decomposer_uid_node_by_uid):
+                    self.planning_context.decomposer_uid_node_by_uid[selected_plan.uid] = {}
                 self.planning_context.notes["new decomposer uids"] = []
                 for current_decomposer in self.decomposers:
                     deltas: PlanDeltas = current_decomposer.estimate_deltas(selected_plan, world)
@@ -131,6 +134,17 @@ class Planner(Generic[World_Type]):
                         (selected_plan.uid, current_decomposer.uid))
             else:
                 new_plans: List[Plan] = selected_decomposer.decompose_tasks(selected_plan, world)
+                if not (selected_plan.uid in self.planning_context.decomposer_uid_node_by_uid):
+                    self.planning_context.decomposer_uid_node_by_uid[selected_plan.uid] = {}
+                if not (selected_decomposer.uid in self.planning_context.decomposer_uid_node_by_uid[selected_plan.uid]):
+                    parent_parent_uid_node =self.planning_context.plan_uid_node_by_uid[
+                        selected_plan.uid]
+                    new_decomposer_uid_node: UIDNode = UIDNode(uid=selected_decomposer.uid,
+                                                               parent=self.planning_context.plan_uid_node_by_uid[
+                                                                   selected_plan.uid])
+                    self.planning_context.decomposer_uid_node_by_uid[selected_plan.uid][
+                        selected_decomposer.uid] = new_decomposer_uid_node
+                    parent_parent_uid_node.children.append(new_decomposer_uid_node)
                 parent_uid_node: UIDNode = self.planning_context.decomposer_uid_node_by_uid[selected_plan.uid][
                     selected_decomposer.uid]
                 for current_new_plan in new_plans:
@@ -179,7 +193,7 @@ class Planner(Generic[World_Type]):
                 if current_child not in visited:
                     visited_all_parents: bool = True
                     for current_parent in current_child.parents:
-                        if not current_parent not in visited:
+                        if current_parent not in visited:
                             visited_all_parents = False
                     if visited_all_parents:
                         queue.append(current_child)

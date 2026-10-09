@@ -1,8 +1,7 @@
 """a FreezableObject is an object that can be frozen and unfrozen."""
-#TODO: (after upgrading to python 3.12) uncomment @override Decorators
 import copy
 from dataclasses import FrozenInstanceError
-from typing import Self, Optional
+from typing import Self, Optional, override
 
 from uniplansy.util.custom_copyable import CustomCopyable
 
@@ -22,7 +21,7 @@ class FreezableObject(CustomCopyable):
     def __init__(self, cache_prefix: str = "_cache"):
         self.frozen: bool = False
         self._cache_prefix = cache_prefix
-        self._temporarily_unfrozen_attribute:Optional[str] = None
+        self._temporarily_unfrozen_attribute: Optional[str] = None
 
     def freeze(self):
         """freeze the object. Meaning it is protected from modification"""
@@ -56,12 +55,12 @@ class FreezableObject(CustomCopyable):
         return new_copy
 
     # noinspection PyUnusedLocal
-    # @override
-    def set_matching_deep_copy(self,other:Self,memo):
+    @override
+    def set_matching_deep_copy(self, other: Self, memo):
         super().set_matching_deep_copy(other, memo)
         other.frozen = self.frozen
 
-    # @override
+    @override
     def __setattr__(self, name, value):
         """
         FreezableObject raise a FrozenInstanceError if they are modified while frozen
@@ -76,12 +75,12 @@ class FreezableObject(CustomCopyable):
         else:
             if (self.frozen and not name.startswith(self._cache_prefix)
                     and not (name == self._temporarily_unfrozen_attribute)):
-                raise FrozenInstanceError()
+                raise FrozenInstanceError("can't modify " + name + " of " + str(type(self)) + " while it is frozen")
             super().__setattr__(name, value)
             if name == self._temporarily_unfrozen_attribute:
                 self._temporarily_unfrozen_attribute = None
 
-    # @override
+    @override
     def __delattr__(self, name):
         """
         FreezableObject raise a FrozenInstanceError if they are modified while frozen

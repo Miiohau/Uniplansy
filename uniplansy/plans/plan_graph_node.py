@@ -17,8 +17,8 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
     node_id_context: Optional[IDRegistry[PlanGraphNode]] = field(default=None)
     children: set[PlanGraphNode] = field(default_factory=set, kw_only=True, compare=False)
     parents: set[PlanGraphNode] = field(default_factory=set, kw_only=True, compare=False)
-    frozen_children: Optional[frozenset[PlanGraphNode]] = field(default=None, init=False, compare=False)
-    frozen_parents: Optional[frozenset[PlanGraphNode]] = field(default=None, init=False, compare=False)
+    _cache_frozen_children: Optional[frozenset[PlanGraphNode]] = field(default=None, init=False, compare=False)
+    _cache_frozen_parents: Optional[frozenset[PlanGraphNode]] = field(default=None, init=False, compare=False)
 
     def __init__(self,
                  uid: str,
@@ -47,13 +47,13 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
         elif not self.frozen:
             return super().__getattribute__(name)
         elif name == "children":
-            if self.frozen_children is None:
-                self.frozen_children = frozenset(super().__getattribute__(name))
-            return self.frozen_children
+            if self._cache_frozen_children is None:
+                self._cache_frozen_children = frozenset(super().__getattribute__(name))
+            return self._cache_frozen_children
         elif name == "parents":
-            if self.frozen_parents is None:
-                self.frozen_parents = frozenset(super().__getattribute__(name))
-            return self.frozen_parents
+            if self._cache_frozen_parents is None:
+                self._cache_frozen_parents = frozenset(super().__getattribute__(name))
+            return self._cache_frozen_parents
         else:
             return super().__getattribute__(name)
 
@@ -61,8 +61,8 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
     def unfreeze(self):
         """ unfreezes the plan"""
         super().unfreeze()
-        self.frozen_children = None
-        self.frozen_parents = None
+        self._cache_frozen_children = None
+        self._cache_frozen_parents = None
 
     def is_compatible_with(self, other: PlanGraphNode) -> bool:
         """return true if PlanGraphNode is compatible with other
@@ -80,11 +80,17 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
         See https://docs.python.org/3/library/copy.html#object.__deepcopy__for more information
         """
         super().set_matching_deep_copy(other, memo)
-        other.frozen_parents = copy.deepcopy(self.frozen_parents, memo)
-        other.frozen_children = copy.deepcopy(self.frozen_children, memo)
+        other_prior_frozen = other.frozen
+        self_prior_frozen = self.frozen
+        other.frozen = False
+        self.frozen = False
+        other._cache_frozen_parents = copy.deepcopy(self._cache_frozen_parents, memo)
+        other._cache_frozen_children = copy.deepcopy(self._cache_frozen_children, memo)
         other.children = copy.deepcopy(self.children, memo)
         other.parents = copy.deepcopy(self.parents, memo)
         other.node_id_context = self.node_id_context
+        other.frozen = other_prior_frozen
+        self.frozen = self_prior_frozen
 
     # @override
     def __deepcopy__(self, memo):
@@ -199,3 +205,5 @@ class PlanGraphNode(FreezableObject, HasRequiredUID):
     def __str__(self):
         return str(self.uid)
 
+    def __hash__(self):
+        return hash(self.uid)

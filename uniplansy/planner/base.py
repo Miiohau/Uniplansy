@@ -18,7 +18,6 @@ from typing import List, Dict, Optional, Any
 
 from uniplansy.decomposers.core import Decomposer
 from uniplansy.plans.plan import Plan
-from uniplansy.util.global_type_vars import World_Type
 
 
 @dataclass
@@ -66,7 +65,7 @@ class DecomposerContext:
     notes: Dict[str, Any] = field(default_factory=dict)
 
 
-class PlanCacheStrategy(metaclass=ABCMeta):
+class PlanCacheStrategy[World_Type](metaclass=ABCMeta):
     """a strategy for what plans to save and how to save and load them
 
     introduce_planning_strategy(method):introduces the PlanningStrategy to this class which it may save.

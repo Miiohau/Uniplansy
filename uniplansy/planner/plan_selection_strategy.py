@@ -25,14 +25,13 @@ from uniplansy.planner.base import MaybeWantsToKnowPlanCacheStrategy, CanPrepopu
 from uniplansy.planner.core import PlanCacheStrategy, PlanningContext
 from uniplansy.plans.plan import Plan
 from uniplansy.plans.plan_comparison_strategy import PlanComparisonStrategy, PlanValueToken
-from uniplansy.util.global_type_vars import World_Type
 
 
 class PlanSelectionStrategy(MaybeWantsToKnowPlanCacheStrategy, CanPrepopulateTheCacheOfPlans, metaclass=ABCMeta):
     """a strategy to select a plan in planning_context."""
 
 
-class FullPlanSelectionStrategy(PlanSelectionStrategy, metaclass=ABCMeta):
+class FullPlanSelectionStrategy[World_Type](PlanSelectionStrategy, metaclass=ABCMeta):
     """a FullPlanSelectionStrategy selects a plan in the context of a planning_context
 
     select_plan(method): the core method that selects a plan
@@ -52,7 +51,7 @@ class FullPlanSelectionStrategy(PlanSelectionStrategy, metaclass=ABCMeta):
         pass
 
 
-class PartialPlanSelectionStrategy(PlanSelectionStrategy, metaclass=ABCMeta):
+class PartialPlanSelectionStrategy[World_Type](PlanSelectionStrategy, metaclass=ABCMeta):
     """used to filter the plan stream
 
     filter_plans(method): filters the plan stream
@@ -78,7 +77,7 @@ class PartialPlanSelectionStrategy(PlanSelectionStrategy, metaclass=ABCMeta):
         pass
 
 
-class PlanFilterStrategy(PartialPlanSelectionStrategy, metaclass=ABCMeta):
+class PlanFilterStrategy[World_Type](PartialPlanSelectionStrategy[World_Type], metaclass=ABCMeta):
     """used to filter the plan stream
 
     accept_plan(method): filters the plan stream
@@ -110,7 +109,7 @@ class PlanFilterStrategy(PartialPlanSelectionStrategy, metaclass=ABCMeta):
                 yield current_plan
 
 
-class InitialPartialPlanSelectionStrategy(PlanSelectionStrategy):
+class InitialPartialPlanSelectionStrategy[World_Type](PlanSelectionStrategy):
     """TODO: docstring"""
 
     @abstractmethod
@@ -119,7 +118,7 @@ class InitialPartialPlanSelectionStrategy(PlanSelectionStrategy):
         pass
 
 
-class FinalPartialPlanSelectionStrategy(PlanSelectionStrategy):
+class FinalPartialPlanSelectionStrategy[World_Type](PlanSelectionStrategy):
     """TODO: docstring"""
 
     @abstractmethod
@@ -133,7 +132,7 @@ class FinalPartialPlanSelectionStrategy(PlanSelectionStrategy):
         pass
 
 
-class NotPlanFilterStrategy(PlanFilterStrategy):
+class NotPlanFilterStrategy[World_Type](PlanFilterStrategy[World_Type]):
 
     def __init__(self, wrapped_plan_filter_strategy: PlanFilterStrategy):
         self.wrapped_plan_filter_strategy = wrapped_plan_filter_strategy
@@ -149,7 +148,7 @@ class NotPlanFilterStrategy(PlanFilterStrategy):
         self.wrapped_plan_filter_strategy.prepopulate_plan_cache(plan_to_populate)
 
 
-class OrPlanFilterStrategy(PlanFilterStrategy):
+class OrPlanFilterStrategy[World_Type](PlanFilterStrategy[World_Type]):
 
     def __init__(self, wrapped_plan_filter_strategies: List[PlanFilterStrategy]):
         self.wrapped_plan_filter_strategies = wrapped_plan_filter_strategies
@@ -170,7 +169,7 @@ class OrPlanFilterStrategy(PlanFilterStrategy):
             current_partial_plan_selection_strategy.prepopulate_plan_cache(plan_to_populate)
 
 
-class AndPlanFilterStrategy(PlanFilterStrategy):
+class AndPlanFilterStrategy[World_Type](PlanFilterStrategy[World_Type]):
 
     def __init__(self, wrapped_plan_filter_strategies: List[PlanFilterStrategy]):
         self.wrapped_plan_filter_strategies = wrapped_plan_filter_strategies
@@ -191,7 +190,7 @@ class AndPlanFilterStrategy(PlanFilterStrategy):
             current_partial_plan_selection_strategy.prepopulate_plan_cache(plan_to_populate)
 
 
-class RandomPlanSelectionStrategy(FinalPartialPlanSelectionStrategy):
+class RandomPlanSelectionStrategy[World_Type](FinalPartialPlanSelectionStrategy[World_Type]):
     """TODO: docstring"""
 
     def __init__(self, limit: int = 100, rnd: Random = Random()):
@@ -215,7 +214,7 @@ class RandomPlanSelectionStrategy(FinalPartialPlanSelectionStrategy):
         return self.rnd.choice(plan_list)
 
 
-class FirstValidPlanSelectionStrategy(FinalPartialPlanSelectionStrategy):
+class FirstValidPlanSelectionStrategy[World_Type](FinalPartialPlanSelectionStrategy[World_Type]):
 
     def select_plan_from_iterable(
             self,
@@ -227,7 +226,7 @@ class FirstValidPlanSelectionStrategy(FinalPartialPlanSelectionStrategy):
         return next(iter(plans_to_filter))
 
 
-class ArbitraryInitialPartialPlanSelectionStrategy(InitialPartialPlanSelectionStrategy):
+class ArbitraryInitialPartialPlanSelectionStrategy[World_Type](InitialPartialPlanSelectionStrategy[World_Type]):
     """TODO: docstring"""
 
     def start_iterable(self, planning_context: PlanningContext, world: World_Type,
@@ -238,7 +237,7 @@ class ArbitraryInitialPartialPlanSelectionStrategy(InitialPartialPlanSelectionSt
                 (current_plan_context.plan is not None))
 
 
-class CompositeFullPlanSelectionStrategy(FullPlanSelectionStrategy):
+class CompositeFullPlanSelectionStrategy[World_Type](FullPlanSelectionStrategy[World_Type]):
     """TODO: docstring
 
     needs a initial/final plan selection strategy but will try to find suitable strategies in
@@ -312,9 +311,9 @@ class CompositeFullPlanSelectionStrategy(FullPlanSelectionStrategy):
             self.final_plan_selection_strategy.prepopulate_plan_cache(plan_to_populate)
 
 
-class GreedyPlanSelectionStrategy(FullPlanSelectionStrategy,
-                                  InitialPartialPlanSelectionStrategy,
-                                  FinalPartialPlanSelectionStrategy):
+class GreedyPlanSelectionStrategy[World_Type](FullPlanSelectionStrategy[World_Type],
+                                              InitialPartialPlanSelectionStrategy[World_Type],
+                                              FinalPartialPlanSelectionStrategy[World_Type]):
     """a greedy PlanSelectionStrategy that returns plans in sort order
     (determined by plan_comparison_strategy: PlanComparisonStrategy)"""
 
@@ -496,21 +495,21 @@ class GreedyPlanSelectionStrategy(FullPlanSelectionStrategy,
                 plan_to_populate.concrete_action_percentage()
 
 
-class FinalPlansOnlyStrategy(PlanFilterStrategy):
+class FinalPlansOnlyStrategy[World_Type](PlanFilterStrategy[World_Type]):
 
     def accept_plan(self, plan: Plan, planning_context: PlanningContext, world: World_Type,
                     finalizing: bool = False) -> bool:
         return plan.concrete_action_percentage() >= 1
 
 
-class AtLeastConcreteActionPlanFilter(PlanFilterStrategy):
+class AtLeastConcreteActionPlanFilter[World_Type](PlanFilterStrategy[World_Type]):
 
     def accept_plan(self, plan: Plan, planning_context: PlanningContext, world: World_Type,
                     finalizing: bool = False) -> bool:
         return plan.at_least_one_concrete_action()
 
 
-class AtLeastOneUnsatisfiedTaskPlanFilter(PlanFilterStrategy):
+class AtLeastOneUnsatisfiedTaskPlanFilter[World_Type](PlanFilterStrategy[World_Type]):
 
     def accept_plan(self, plan: Plan, planning_context: PlanningContext, world: World_Type,
                     finalizing: bool = False) -> bool:

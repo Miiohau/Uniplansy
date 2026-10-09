@@ -5,12 +5,11 @@ It contains a TaskDescription, cost metrics, motivation and a satisfied_percenta
 TaskDescription(class): an immutable description of a task that is safe to reuse across different Plans
 TaskFilter(class): a filter that can filter tasks
 """
-#TODO: (after upgrading to python 3.12) uncomment @override Decorators
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 from fractions import Fraction
 from math import isfinite
-from typing import Any, Self, Optional, ClassVar, Iterable, Generator, List
+from typing import Any, Self, Optional, ClassVar, Iterable, Generator, List, override
 
 from immutabledict import immutabledict
 
@@ -37,15 +36,15 @@ class TaskDescription(HasRequiredUID):
 
     # TODO: add a tag system for faster and semantic lookups
 
-    # @override
+    @override
     def __str__(self) -> str:
         return f"{self.human_understandable_string}"
 
-    # @override
+    @override
     def __eq__(self, other):
         if isinstance(other, TaskDescription):
             if self.uid == other.uid:
-                if __debug__ :
+                if __debug__:
                     assert self.human_understandable_string == other.human_understandable_string, \
                         (f"by guid \"{self.human_understandable_string}\" {self.uid} "
                          f"should equal \"{other.human_understandable_string}\" {self.uid} but "
@@ -60,17 +59,16 @@ class TaskDescription(HasRequiredUID):
                     self.context == other.context)
         return NotImplemented
 
-    # @override
+    @override
     def __hash__(self) -> int:
         return hash(self.uid)
 
-    # @override
     def __copy__(self):
         return self
 
-    # @override
     def __deepcopy__(self, memo):
         return self
+
 
 @dataclass(init=False)
 class Task(PlanGraphNode):
@@ -146,7 +144,7 @@ class Task(PlanGraphNode):
             max_value = float(max_value)
         return min(max(self.satisfied_percentage, min_value), max_value)
 
-    # @override
+    @override
     def is_compatible_with(self, other: PlanGraphNode) -> bool:
         if isinstance(other, Task):
             return self.description == other.description
@@ -165,14 +163,17 @@ class Task(PlanGraphNode):
                 (self.max_cost == other.max_cost) and
                 (self.satisfied_percentage == other.satisfied_percentage))
 
-    def set_matching_deep_copy(self,other:Self,memo):
-        super().set_matching_deep_copy(other,memo)
-        self.motivation = other.motivation
-        self.estimated_cost = other.estimated_cost
-        self.min_cost = other.min_cost
-        self.max_cost = other.max_cost
-        self.satisfied_percentage = other.satisfied_percentage
-        self.task_description_id_context = other.task_description_id_context
+    def set_matching_deep_copy(self, other: Self, memo):
+        super().set_matching_deep_copy(other, memo)
+        prior_frozen = other.frozen
+        other.frozen = False
+        other.motivation = self.motivation
+        other.estimated_cost = self.estimated_cost
+        other.min_cost = self.min_cost
+        other.max_cost = self.max_cost
+        other.satisfied_percentage = self.satisfied_percentage
+        other.task_description_id_context = self.task_description_id_context
+        other.frozen = prior_frozen
 
     def __deepcopy__(self, memo):
         new_copy = type(self)(uid=self.uid, description=self.description)
@@ -188,7 +189,7 @@ class Task(PlanGraphNode):
         return state
 
     # TODO:see if we can find a way to connect unpickled Tasks to their old notes
-    def __setstate__(self,state):
+    def __setstate__(self, state):
         super().__setstate__(state)
         self.task_description_id_context = id_registry_registry.fetch(state['task_description_id_context_id'])
         del self.__dict__['task_description_id_context_id']
@@ -201,6 +202,13 @@ class Task(PlanGraphNode):
                 "min_cost:" + str(self.min_cost) + "max_cost:" + str(self.max_cost) +
                 "satisfied_percentage:" + str(self.satisfied_percentage))
 
+    def __eq__(self, other) -> bool:
+        return super().__eq__(
+            other) and self.description == other.description and self.description_id == other.description_id
+
+    def __hash__(self):
+        return super().__hash__()
+
     if __debug__:
         NO_SPECIAL_VALUES_ALLOWED_ATTRIBUTES: ClassVar[list[str]] = ['motivation', 'estimated_cost', 'min_cost',
                                                                      'satisfied_percentage']
@@ -210,6 +218,7 @@ class Task(PlanGraphNode):
                 if isinstance(value, float) and not isfinite(value):
                     raise TypeError(f"{value} is not finite. floats assigned to {name} must be finite")
             super().__setattr__(name, value)
+
 
 class TaskFilter(metaclass=ABCMeta):
     """a filter that can filter tasks

@@ -12,3 +12,8 @@ class StoppingStrategy(metaclass=ABCMeta):
         :param context: the planning context
         """
         pass
+
+class NullStoppingStrategy(StoppingStrategy):
+
+    def should_stop(self, context: PlanningContext) -> bool:
+        return False

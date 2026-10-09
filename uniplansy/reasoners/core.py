@@ -4,17 +4,16 @@ from __future__ import annotations
 
 from typing import Optional, List, Callable
 
-from uniplansy.reasoners.base import Reasoner, Reasoner_Update_Context_Type, ReasonerBuilder, ReasonerState, \
+from uniplansy.reasoners.base import Reasoner, ReasonerBuilder, ReasonerState, \
     SubReasonerStruct, ChildFailureException
 from uniplansy.reasoners.considerations.core import ReasonerConsideration
-from uniplansy.util.global_type_vars import World_Type
 from uniplansy.util.id_registry import IDRegistry
 
 
 # Todo: validate this against a set of requirements
 
 
-class SimpleReasoner(Reasoner[Reasoner_Update_Context_Type, World_Type]):
+class SimpleReasoner[Reasoner_Update_Context_Type, World_Type](Reasoner[Reasoner_Update_Context_Type, World_Type]):
     def __init__(self, uid: str, id_registry: IDRegistry[ReasonerBuilder],
                  start_conditions: List[ReasonerConsideration] = None,
                  run_conditions: List[ReasonerConsideration] = None,
@@ -43,7 +42,7 @@ class SimpleReasoner(Reasoner[Reasoner_Update_Context_Type, World_Type]):
             super().act(world, update_context)
 
 
-class CommonConjunctionReasoner(Reasoner[Reasoner_Update_Context_Type, World_Type]):
+class CommonConjunctionReasoner[Reasoner_Update_Context_Type, World_Type](Reasoner[Reasoner_Update_Context_Type, World_Type]):
 
     def __init__(self, uid: str,
                  id_registry: IDRegistry[ReasonerBuilder],
@@ -130,7 +129,7 @@ class CommonConjunctionReasoner(Reasoner[Reasoner_Update_Context_Type, World_Typ
                 break
 
 
-class PrioritySequenceReasoner(CommonConjunctionReasoner[Reasoner_Update_Context_Type, World_Type]):
+class PrioritySequenceReasoner[Reasoner_Update_Context_Type, World_Type](CommonConjunctionReasoner[Reasoner_Update_Context_Type, World_Type]):
 
     def __init__(self, uid: str,
                  id_registry: IDRegistry[ReasonerBuilder],
@@ -170,7 +169,7 @@ class PrioritySequenceReasoner(CommonConjunctionReasoner[Reasoner_Update_Context
                 break
 
 
-class SequenceReasoner(CommonConjunctionReasoner[Reasoner_Update_Context_Type, World_Type]):
+class SequenceReasoner[Reasoner_Update_Context_Type, World_Type](CommonConjunctionReasoner[Reasoner_Update_Context_Type, World_Type]):
 
     def __init__(self, uid: str,
                  id_registry: IDRegistry[ReasonerBuilder],
@@ -197,7 +196,7 @@ class SequenceReasoner(CommonConjunctionReasoner[Reasoner_Update_Context_Type, W
             return []
 
 
-class ThreadableCommonConjunctionReasoner(CommonConjunctionReasoner[Reasoner_Update_Context_Type, World_Type]):
+class ThreadableCommonConjunctionReasoner[Reasoner_Update_Context_Type, World_Type](CommonConjunctionReasoner[Reasoner_Update_Context_Type, World_Type]):
 
     def __init__(self, uid: str, id_registry: IDRegistry[ReasonerBuilder], sub_reasoner_uids: Optional[List[str]],
                  short_circuiting: bool = True,
@@ -245,7 +244,7 @@ class ThreadableCommonConjunctionReasoner(CommonConjunctionReasoner[Reasoner_Upd
             return []
 
 
-class AnyReasoner(ThreadableCommonConjunctionReasoner[Reasoner_Update_Context_Type, World_Type]):
+class AnyReasoner[Reasoner_Update_Context_Type, World_Type](ThreadableCommonConjunctionReasoner[Reasoner_Update_Context_Type, World_Type]):
     def __init__(self, uid: str, id_registry: IDRegistry[ReasonerBuilder], sub_reasoner_uids: Optional[List[str]],
                  short_circuiting: bool = True,
                  multithreaded=False,
@@ -258,7 +257,7 @@ class AnyReasoner(ThreadableCommonConjunctionReasoner[Reasoner_Update_Context_Ty
                          any_semantics=True, default_finished_state=default_finished_state)
 
 
-class AllReasoner(ThreadableCommonConjunctionReasoner[Reasoner_Update_Context_Type, World_Type]):
+class AllReasoner[Reasoner_Update_Context_Type, World_Type](ThreadableCommonConjunctionReasoner[Reasoner_Update_Context_Type, World_Type]):
     def __init__(self, uid: str, id_registry: IDRegistry[ReasonerBuilder], sub_reasoner_uids: Optional[List[str]],
                  short_circuiting: bool = True,
                  multithreaded=False,

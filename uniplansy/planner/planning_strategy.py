@@ -35,7 +35,6 @@ from uniplansy.planner.decomposer_selection_strategy import FullDecomposerSelect
 from uniplansy.planner.plan_selection_strategy import FullPlanSelectionStrategy, PlanFilterStrategy
 from uniplansy.plans.plan import Plan, PlanDeltas
 from uniplansy.plans.plan_comparison_strategy import PlanComparisonStrategy, PlanValueToken
-from uniplansy.util.global_type_vars import World_Type
 from uniplansy.util.id_registry import RegistryKeyNotFoundError
 
 
@@ -43,7 +42,7 @@ from uniplansy.util.id_registry import RegistryKeyNotFoundError
 #  Plan, Decomposer pairs and return a list of Plan, Decomposer pairs
 
 
-class FullPlanningStrategy(PlanningStrategy, metaclass=ABCMeta):
+class FullPlanningStrategy[World_Type](PlanningStrategy, metaclass=ABCMeta):
     """a FullPlanningStrategy used to select a Plan Decomposer pair
 
     plan(method): selects a plan and a decomposer
@@ -64,7 +63,7 @@ class FullPlanningStrategy(PlanningStrategy, metaclass=ABCMeta):
         pass
 
 
-class PartialPlanningStrategy(PlanningStrategy, metaclass=ABCMeta):
+class PartialPlanningStrategy[World_Type](PlanningStrategy, metaclass=ABCMeta):
     """a PartialPlanningStrategy used to filter the plan Decomposer tuple stream
 
     filter_plans(method): filters the plan Decomposer tuple stream
@@ -91,7 +90,7 @@ class PartialPlanningStrategy(PlanningStrategy, metaclass=ABCMeta):
         pass
 
 
-class PlanningFilterStrategy(PartialPlanningStrategy, metaclass=ABCMeta):
+class PlanningFilterStrategy[World_Type](PartialPlanningStrategy[World_Type], metaclass=ABCMeta):
     """a PartialPlanningStrategy used to filter the plan Decomposer tuple stream
 
     accept_plan(method): accepts or rejects the plan decomposer pair
@@ -130,7 +129,7 @@ class PlanningFilterStrategy(PartialPlanningStrategy, metaclass=ABCMeta):
                 yield current_plan, current_decomposer
 
 
-class InitialPartialPlanningStrategy(PlanningStrategy):
+class InitialPartialPlanningStrategy[World_Type](PlanningStrategy):
     """a PlanningStrategy used to start the plan Decomposer tuple stream
 
     also decides the order plan Decomposer tuple are visited
@@ -151,7 +150,7 @@ class InitialPartialPlanningStrategy(PlanningStrategy):
         pass
 
 
-class FinalPlanningStrategy(PlanningStrategy):
+class FinalPlanningStrategy[World_Type](PlanningStrategy):
     """a PlanningStrategy used to select the plan Decomposer tuple from the plan Decomposer tuple stream
 
     select_plan_from_iterable(method): selects a plan Decomposer pair from the plan Decomposer tuple stream
@@ -177,7 +176,7 @@ class FinalPlanningStrategy(PlanningStrategy):
         pass
 
 
-class NotPlanningFilterStrategy(PlanningFilterStrategy):
+class NotPlanningFilterStrategy[World_Type](PlanningFilterStrategy[World_Type]):
     """inverts the wrapped_Planning_filter_strategy"""
 
     def __init__(self, wrapped_planning_filter_strategy: PlanningFilterStrategy):
@@ -203,7 +202,7 @@ class NotPlanningFilterStrategy(PlanningFilterStrategy):
         self.wrapped_planning_filter_strategy.prepopulate_plan_cache(plan_to_populate)
 
 
-class OrPlanningFilterStrategy(PlanningFilterStrategy):
+class OrPlanningFilterStrategy[World_Type](PlanningFilterStrategy[World_Type]):
     """accepts the plan decomposer pair if any wrapped_planning_filter_strategies accepts the plan decomposer pair"""
 
     def __init__(self, wrapped_planning_filter_strategies: List[PlanningFilterStrategy]):
@@ -230,7 +229,7 @@ class OrPlanningFilterStrategy(PlanningFilterStrategy):
             current_partial_plan_selection_strategy.prepopulate_plan_cache(plan_to_populate)
 
 
-class AndPlanningFilterStrategy(PlanningFilterStrategy):
+class AndPlanningFilterStrategy[World_Type](PlanningFilterStrategy[World_Type]):
     """accepts the plan decomposer pair only if all wrapped_planning_filter_strategies accepts
     the plan decomposer pair"""
 
@@ -258,7 +257,7 @@ class AndPlanningFilterStrategy(PlanningFilterStrategy):
             current_partial_plan_selection_strategy.prepopulate_plan_cache(plan_to_populate)
 
 
-class PlanFilterToPlanningFilter(PlanningFilterStrategy):
+class PlanFilterToPlanningFilter[World_Type](PlanningFilterStrategy[World_Type]):
     """wraps a PlanFilterStrategy to turn it into a PlanningFilterStrategy"""
 
     def __init__(self, wrapped_plan_filter_strategy: PlanFilterStrategy):
@@ -273,7 +272,8 @@ class PlanFilterToPlanningFilter(PlanningFilterStrategy):
                     ) -> bool:
         return self.wrapped_plan_filter_strategy.accept_plan(plan, planning_context, world)
 
-class DecomposerFilterToPlanningFilter(PlanningFilterStrategy):
+
+class DecomposerFilterToPlanningFilter[World_Type](PlanningFilterStrategy[World_Type]):
     """wraps a PlanFilterStrategy to turn it into a PlanningFilterStrategy"""
 
     def __init__(self, wrapped_decomposer_filter_strategy: DecomposerFilterStrategy):
@@ -291,7 +291,7 @@ class DecomposerFilterToPlanningFilter(PlanningFilterStrategy):
                                                                          world)
 
 
-class RandomFinalPlanningStrategy(FinalPlanningStrategy):
+class RandomFinalPlanningStrategy[World_Type](FinalPlanningStrategy[World_Type]):
     """a FinalPlanningStrategy that selects a plan decomposer pair at random
 
     limit(initialization parameter):the maximum number of plan decomposer pairs to pull off
@@ -318,7 +318,7 @@ class RandomFinalPlanningStrategy(FinalPlanningStrategy):
         return self.rnd.choice(plan_list)
 
 
-class FirstValidPlanningStrategy(FinalPlanningStrategy):
+class FirstValidPlanningStrategy[World_Type](FinalPlanningStrategy[World_Type]):
     """selects the first valid plan from the plan Decomposer tuple stream"""
 
     def select_plan_from_iterable(
@@ -331,7 +331,7 @@ class FirstValidPlanningStrategy(FinalPlanningStrategy):
         return next(iter(plans_to_filter))
 
 
-class ArbitraryInitialPartialPlanningStrategy(InitialPartialPlanningStrategy):
+class ArbitraryInitialPartialPlanningStrategy[World_Type](InitialPartialPlanningStrategy[World_Type]):
     """start the plan Decomposer tuple stream in an arbitrary order.
 
     useful when don't care the order of nodes being expanded"""
@@ -351,7 +351,7 @@ class ArbitraryInitialPartialPlanningStrategy(InitialPartialPlanningStrategy):
                     planning_context.decomposer_context_by_uid[parent_uid_node.uid][current_uid_node.uid]
 
 
-class CompositeFullPlanningStrategy(FullPlanningStrategy):
+class CompositeFullPlanningStrategy[World_Type](FullPlanningStrategy[World_Type]):
     """a FullPlanningStrategy that composed of PartialPlanningStrategies
 
     needs an initial/final Planning strategy but will try to find suitable strategies in
@@ -428,7 +428,7 @@ class CompositeFullPlanningStrategy(FullPlanningStrategy):
 
 
 @dataclass
-class DelegatingPlanningStrategy(FullPlanningStrategy):
+class DelegatingPlanningStrategy[World_Type](FullPlanningStrategy[World_Type]):
     """Delegates the planning to a plan_selection_strategy and a decomposer_selection_strategy
 
     assumes plan_selection_strategy will eventually select a plan that
@@ -462,9 +462,9 @@ class DelegatingPlanningStrategy(FullPlanningStrategy):
 
 
 # todo: take advantage of self.planning_context.notes["new decomposer uids"]
-class GreedyPlanningStrategy(FullPlanningStrategy,
-                             InitialPartialPlanningStrategy,
-                             FinalPlanningStrategy):
+class GreedyPlanningStrategy[World_Type](FullPlanningStrategy[World_Type],
+                                         InitialPartialPlanningStrategy[World_Type],
+                                         FinalPlanningStrategy[World_Type]):
     """a greedy PlanningStrategy that returns Plan Decomposer pairs in sort order
         (determined by plan_comparison_strategy: PlanComparisonStrategy)"""
 
@@ -501,10 +501,10 @@ class GreedyPlanningStrategy(FullPlanningStrategy,
                                         (current_plan_context.plan is not None)]
             self._add_plans_to_heap(active_plans, planning_context)
         else:
-            new_plans: List[Plan] = [PlanningContext.plan_context_by_uid[curUID].plan
+            new_plans: List[Plan] = [planning_context.plan_context_by_uid[curUID].plan
                                      for curUID in planning_context.notes["new plan uids"]
-                                     if (PlanningContext.plan_context_by_uid[curUID] is not None) and
-                                     (PlanningContext.plan_context_by_uid[curUID].plan is not None)]
+                                     if (planning_context.plan_context_by_uid[curUID] is not None) and
+                                     (planning_context.plan_context_by_uid[curUID].plan is not None)]
             self._add_plans_to_heap(new_plans, planning_context)
         while True:
             if len(self.min_heap) == 0:
@@ -535,14 +535,16 @@ class GreedyPlanningStrategy(FullPlanningStrategy,
 
     def plan(self, planning_context: PlanningContext, world: World_Type, decomposers: set[Decomposer]) \
             -> Optional[tuple[Plan, Optional[Decomposer]]]:
-        new_plans: List[Plan] = [PlanningContext.plan_context_by_uid[curUID].plan
+        new_plans: List[Plan] = [planning_context.plan_context_by_uid[curUID].plan
                                  for curUID in planning_context.notes["new plan uids"]
-                                 if (PlanningContext.plan_context_by_uid[curUID] is not None) and
-                                 (PlanningContext.plan_context_by_uid[curUID].plan is not None)]
+                                 if (planning_context.plan_context_by_uid[curUID] is not None) and
+                                 (planning_context.plan_context_by_uid[curUID].plan is not None)]
         self._add_plans_to_heap(new_plans, planning_context)
         selected_plan: Optional[Plan] = None
         selected_decomposer: Optional[Decomposer] = None
         while (selected_plan is None) or (selected_decomposer is None):
+            if len(self.min_heap) == 0:
+                break
             selected_plan_decomposer_tuple: tuple[tuple, tuple[str, Optional[str]]] = heapq.heappop(self.min_heap)
             if ((planning_context.plan_context_by_uid[selected_plan_decomposer_tuple[1][0]] is None) or
                     (planning_context.plan_context_by_uid[selected_plan_decomposer_tuple[1][0]].plan is None)):
@@ -639,7 +641,3 @@ class GreedyPlanningStrategy(FullPlanningStrategy,
                 plan_to_populate.average_satisfied_percentage()
             elif cur_token == PlanValueToken.satisfied_percentage_median:
                 plan_to_populate.median_satisfied_percentage()
-
-# standard PlanningStrategies
-# TODO: create these classes
-# decomposer filter to planning filter

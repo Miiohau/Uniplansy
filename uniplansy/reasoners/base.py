@@ -4,17 +4,13 @@ import copy
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Self, TypeVar, Generic, List, final
+from typing import Optional, Self, List, final
 
 from uniplansy.reasoners.considerations.core import ReasonerConsideration
 from uniplansy.util.custom_copyable import CustomCopyable
-from uniplansy.util.global_type_vars import World_Type
 from uniplansy.util.has_uid import HasOptionalUID, HasRequiredUID
 from uniplansy.util.id_registry import IDRegistry
 from uniplansy.util.uid_suppliers.uid_supplier import GUIDSupplier
-
-#TODO: (after upgrading to python 3.12) Remove convert to new Type Parameter Syntax
-Reasoner_Update_Context_Type: TypeVar = TypeVar('Reasoner_Update_Context_Type')
 
 
 class ReasonerException(Exception):
@@ -56,7 +52,7 @@ class ReasonerState(Enum):
 
 
 @dataclass
-class SubReasonerStruct(Generic[Reasoner_Update_Context_Type, World_Type]):
+class SubReasonerStruct[Reasoner_Update_Context_Type, World_Type]:
     reasoner: Reasoner[Reasoner_Update_Context_Type, World_Type]
     active_reasoner_considerations: List[ReasonerConsideration] = field(default_factory=list)
     entered_sub_reasoner: bool = field(default=False, init=False)
@@ -65,7 +61,7 @@ class SubReasonerStruct(Generic[Reasoner_Update_Context_Type, World_Type]):
     enter_state: ReasonerState = field(default=ReasonerState.Not_Started, init=False)
 
 
-class Reasoner(HasRequiredUID, Generic[Reasoner_Update_Context_Type, World_Type], metaclass=ABCMeta):
+class Reasoner[Reasoner_Update_Context_Type, World_Type](HasRequiredUID, metaclass=ABCMeta):
 
     def __init__(self, uid: str,
                  id_registry: IDRegistry[ReasonerBuilder],

@@ -10,7 +10,7 @@ dynamic = ["version"]
 dependencies = [
     'immutabledict'
 ]
-requires-python = ">= 3.11"
+requires-python = ">= 3.12"
 authors = [{ name = "miiohau", email = "Miiohau@gmail.com" }]
 maintainers = [{ name = "miiohau", email = "Miiohau@gmail.com" }]
 description = "Uniplansy(UNIversal PLANning SYstem). A framework for making planning systems."
@@ -35,7 +35,6 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
     # Specify the Python versions you support here.
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",

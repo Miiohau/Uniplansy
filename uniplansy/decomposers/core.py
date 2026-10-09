@@ -6,21 +6,20 @@ Goal (Decomposer): Goals are special Decomposers that are only applicable to emp
 have run on. There primary reason for existence is to place top level/end goals in to the plan.
 decomposer_registry (module variable): an IDRegistry that holds all registered decomposers
 """
-#TODO: (after upgrading to python 3.12) uncomment @override Decorators
 #TODO: (after updating to python 3.14 (in which Annotations are lazily evaluated by default))
 # remove "from __future__ import annotations"
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
-from typing import List, Any, Self, Generic, Optional
+from typing import List, Any, Self, Optional, override
 
 from immutabledict import immutabledict
 
 from uniplansy.plans.plan import Plan, PlanDeltas
 from uniplansy.plans.plan_graph_node import PlanGraphNode
-from uniplansy.reasoners.graph import ReasonerTemplate
-from uniplansy.util.global_type_vars import World_Type
+from uniplansy.reasoners.graph import ReasonerTemplate, CommonConjunctionReasonerBuilder
+from uniplansy.tasks.tasks import TaskDescription, Task
 from uniplansy.util.has_uid import HasRequiredUID
 from uniplansy.util.id_registry import IDRegistry, RegistryKeyAlreadyExistsError, id_registry_registry
 
@@ -60,7 +59,10 @@ class DecomposerNode(PlanGraphNode):
     # @override
     def set_matching_deep_copy(self, other: Self, memo):
         super().set_matching_deep_copy(other, memo)
+        prior_frozen = other.frozen
+        other.frozen = False
         other.notes = self.notes
+        other.frozen = prior_frozen
 
     def could_be_equal(self, other) -> bool:
         if not super().could_be_equal(other):
@@ -71,7 +73,7 @@ class DecomposerNode(PlanGraphNode):
             return False
         return True
 
-    # @override
+    @override
     def __deepcopy__(self, memo):
         new_copy = type(self)(uid=self.uid, node_decomposer=self.node_decomposer)
         self.set_matching_deep_copy(new_copy, memo)
@@ -89,9 +91,15 @@ class DecomposerNode(PlanGraphNode):
         self.node_decomposer = decomposer_registry.fetch(state['node_decomposer_id'])
         del self.__dict__['node_decomposer_id']
 
+    def __eq__(self, other) -> bool:
+        return super().__eq__(other) and self.node_decomposer == other.node_decomposer
+
+    def __hash__(self):
+        return super().__hash__()
+
 
 # TODO: proof read the doc because this is very important concept for users of the library
-class Decomposer(HasRequiredUID, Generic[World_Type], metaclass=ABCMeta):
+class Decomposer[World_Type](HasRequiredUID, metaclass=ABCMeta):
     """knowledge expert that can decompose a plan typically by decomposing Tasks within that plan.
 
     abstractly a Decomposer represents a course of action
@@ -166,24 +174,55 @@ class Decomposer(HasRequiredUID, Generic[World_Type], metaclass=ABCMeta):
         pass
 
 
-class Goal(Decomposer, metaclass=ABCMeta):
+class Goal[World_Type](Decomposer[World_Type], metaclass=ABCMeta):
     """Goals are special Decomposers that are only applicable to empty plans or plans only Goals have run on.
     There primary reason for existence is to place top level/end goals in to the plan"""
 
-    def __init__(self, uid: str, register_self: bool = True):
+    def __init__(self,
+                 uid: str,
+                 goal_task_uid: str,
+                 goal_description: TaskDescription,
+                 reasoner_template_preferred_name: Optional[str] = None,
+                 register_self: bool = True):
         super().__init__(uid=uid, register_self=register_self)
+        self.goal_task_uid = goal_task_uid
+        self.goal_description = goal_description
+        if reasoner_template_preferred_name is not None:
+            self.reasoner_template_preferred_name = reasoner_template_preferred_name
+        else:
+            self.reasoner_template_preferred_name = self.goal_task_uid + "_template"
 
     # noinspection PyMethodMayBeStatic
     # noinspection PyUnusedLocal
     def applicable(self, plan: Plan, world: World_Type) -> bool:
         if len(plan.nodes_by_UID) == 0:
             return True
+        elif self.goal_task_uid in plan.nodes_by_UID:
+            #if the goal task has already been added to the plan this goal is no longer applicable
+            return False
         elif (len(plan.nodes_by_UID) == len(plan.tasks_by_UID)) and (len(plan.tasks_by_UID) == len(plan.leaf_tasks())):
             # if the only nodes are tasks and all of those tasks are leaves then we assume no Decomposers other than
             # Goals have run.
             return True
         else:
             return False
+
+    def decompose_tasks(self, plan: Plan, world: World_Type) -> List[Plan]:
+        new_plan = plan.deep_copy_and_unfreeze()
+        new_plan.add_node(Task(
+            uid=self.goal_task_uid,
+            description=self.goal_description
+        ))
+        return [new_plan]
+
+    def convert_to_reasoner_graph(self, node: DecomposerNode,
+                                  node_id_to_builder_id: dict[str, str]) -> ReasonerTemplate:
+        new_template = CommonConjunctionReasonerBuilder()
+        new_template.preferred_name = self.reasoner_template_preferred_name
+        new_template.all_semantics = True
+        for child in node.children:
+            new_template.sub_reasoner_uids.append(node_id_to_builder_id[child.uid])
+        return new_template
 
 
 """the global registry of all Decomposers"""

@@ -1,4 +1,3 @@
-#TODO: (after upgrading to python 3.12) uncomment @override Decorators
 #TODO: (after updating to python 3.14 (in which Annotations are lazily evaluated by default))
 # remove "from __future__ import annotations"
 from __future__ import annotations
@@ -6,14 +5,13 @@ from __future__ import annotations
 import copy
 from abc import ABCMeta
 from dataclasses import dataclass, field
-from typing import List, TypeAlias, Optional, Self, Generic, Callable, ClassVar
+from typing import List, Optional, Self, Callable, ClassVar, override
 
 from uniplansy.reasoners.base import ReasonerBuilder
 from uniplansy.reasoners.considerations.core import ReasonerConsideration
 from uniplansy.reasoners.core import Reasoner, ReasonerState, ThreadableCommonConjunctionReasoner, \
     PrioritySequenceReasoner, \
-    Reasoner_Update_Context_Type, SimpleReasoner
-from uniplansy.util.global_type_vars import World_Type
+    SimpleReasoner
 from uniplansy.util.has_preferred_name import HasPreferredName
 from uniplansy.util.id_registry import IDRegistry
 from uniplansy.util.uid_suppliers.default_guid_supplier import default_guid_supplier
@@ -28,7 +26,7 @@ class ReasonerBuilderBase(ReasonerBuilder, HasPreferredName, metaclass=ABCMeta):
     start_conditions: List[ReasonerConsideration] = None,
     run_conditions: List[ReasonerConsideration] = None
 
-    # @override
+    @override
     def set_matching_deep_copy(self, other: Self, memo):
         super().set_matching_deep_copy(other, memo)
         other.preferred_name = self.preferred_name
@@ -69,7 +67,7 @@ class CommonConjunctionReasonerBuilder(ReasonerBuilderBase):
     short_circuiting: bool = True,
     default_finished_state: Optional[ReasonerState] = None,
 
-    # @override
+    @override
     def fill_unset_fields(self,
                           id_registry: Optional[IDRegistry[ReasonerBuilder]] = None,
                           guid_supplier: Optional[GUIDSupplier] = None):
@@ -79,7 +77,7 @@ class CommonConjunctionReasonerBuilder(ReasonerBuilderBase):
         elif (self.all_semantics is not None) and (self.any_semantics is None):
             self.any_semantics = not self.all_semantics
 
-    # @override
+    @override
     def set_matching_deep_copy(self, other: Self, memo):
         other.sub_reasoner_uids = copy.deepcopy(self.sub_reasoner_uids, memo)
         other.all_semantics = self.all_semantics
@@ -88,7 +86,7 @@ class CommonConjunctionReasonerBuilder(ReasonerBuilderBase):
         other.short_circuiting = other.short_circuiting
         other.default_finished_state = other.default_finished_state
 
-    # @override
+    @override
     def build(self, id_registry: IDRegistry[ReasonerBuilder], guid_supplier: Optional[GUIDSupplier] = None) -> Reasoner:
         self.fill_unset_fields(id_registry=id_registry, guid_supplier=guid_supplier)
         return ThreadableCommonConjunctionReasoner(uid=self.uid,
@@ -111,7 +109,7 @@ class PrioritySequenceReasonerBuilder(ReasonerBuilderBase):
     short_circuiting: bool = True,
     default_finished_state: Optional[ReasonerState] = ReasonerState.Done
 
-    # @override
+    @override
     def fill_unset_fields(self,
                           id_registry: Optional[IDRegistry[ReasonerBuilder]] = None,
                           guid_supplier: Optional[GUIDSupplier] = None):
@@ -121,7 +119,7 @@ class PrioritySequenceReasonerBuilder(ReasonerBuilderBase):
         elif (self.all_semantics is not None) and (self.any_semantics is None):
             self.any_semantics = not self.all_semantics
 
-    # @override
+    @override
     # noinspection PyUnusedLocal
     def set_matching_deep_copy(self, other: Self, memo):
         other.sub_reasoner_uids = copy.deepcopy(self.sub_reasoner_uids, memo)
@@ -130,7 +128,7 @@ class PrioritySequenceReasonerBuilder(ReasonerBuilderBase):
         other.short_circuiting = other.short_circuiting
         other.default_finished_state = other.default_finished_state
 
-    # @override
+    @override
     def build(self, id_registry: IDRegistry[ReasonerBuilder], guid_supplier: Optional[GUIDSupplier] = None) -> Reasoner:
         self.fill_unset_fields(id_registry=id_registry, guid_supplier=guid_supplier)
         return PrioritySequenceReasoner(uid=self.uid,
@@ -145,7 +143,7 @@ class PrioritySequenceReasonerBuilder(ReasonerBuilderBase):
 
 
 @dataclass
-class SimpleReasonerBuilder(ReasonerBuilderBase, Generic[World_Type, Reasoner_Update_Context_Type,]):
+class SimpleReasonerBuilder[World_Type, Reasoner_Update_Context_Type,](ReasonerBuilderBase,):
     sense_delegate: Optional[Callable[[World_Type, Reasoner_Update_Context_Type], Reasoner_Update_Context_Type]] = None,
     act_delegate: Optional[Callable[[World_Type, Reasoner_Update_Context_Type], bool]] = None,
 
@@ -170,7 +168,7 @@ class BaseReasonerBuilderWrapper(ReasonerBuilder, HasPreferredName, metaclass=AB
 
     WRAPPED_BUILDER_NAME: ClassVar[str] = "{wrapped_builder_name}"
 
-    # @override
+    @override
     def fill_unset_fields(self, id_registry: Optional[IDRegistry[ReasonerBuilder]] = None,
                           guid_supplier: Optional[GUIDSupplier] = None):
         """this is helper method to fill ReasonerBuilder fields not required at init time but required at build time
@@ -200,32 +198,31 @@ class BaseReasonerBuilderWrapper(ReasonerBuilder, HasPreferredName, metaclass=AB
             if isinstance(guid_supplier_to_use, UniqueInIDRegistryUIDSupplierWrapper) and old_id_registry is not None:
                 guid_supplier_to_use.registry = old_id_registry
 
-    # @override
+    @override
     def set_matching_deep_copy(self, other: Self, memo):
         super().set_matching_deep_copy(other, memo)
         other.wrapped_reasoner_builder = copy.deepcopy(self.wrapped_reasoner_builder, memo)
         other.preferred_name = self.preferred_name
         other.template_guid_supplier = self.template_guid_supplier
 
-    # @override
+    @override
     def __setattr__(self, name, value):
         if name in dir(self):
             super().__setattr__(name, value)
         else:
             setattr(self.wrapped_reasoner_builder, name, value)
 
-    # @override
+    @override
     def __delattr__(self, name):
         if name in dir(self):
             super().__delattr__(name)
         else:
             delattr(self.wrapped_reasoner_builder, name)
 
-    # @override
     def __getattr__(self, name):
         return getattr(self.wrapped_reasoner_builder, name)
 
-    # @override
+    @override
     def __getattribute__(self, name):
         if name in dir(self):
             return super().__getattribute__(name)
@@ -237,7 +234,7 @@ class BaseReasonerBuilderWrapper(ReasonerBuilder, HasPreferredName, metaclass=AB
 class SingletonReasonerBuilderWrapper(BaseReasonerBuilderWrapper):
     singleton: Optional[Reasoner] = field(default=None, init=False)
 
-    # @override
+    @override
     # noinspection PyMethodMayBeStatic
     def set_matching_deep_copy(self, other: Self, memo):
         super().set_matching_deep_copy(other, memo)
@@ -250,5 +247,4 @@ class SingletonReasonerBuilderWrapper(BaseReasonerBuilderWrapper):
         return self.singleton
 
 
-#TODO: after updating to python 3.12 change this to a type statement
-ReasonerTemplate: TypeAlias = ReasonerBuilder
+type ReasonerTemplate = ReasonerBuilder
